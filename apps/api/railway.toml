@@ -1,0 +1,28 @@
+[build]
+dockerfilePath = "apps/api/Dockerfile"
+# Build context is the monorepo root so pnpm workspace files are reachable.
+# Set "Root Directory" to "/" in the Railway service settings.
+
+[deploy]
+startCommand = "node dist/index.js"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[[deploy.environmentVariables]]
+# Declare variable names here; set actual values in Railway dashboard.
+# Required:
+#   DATABASE_URL          — Neon postgres connection string (pooled)
+#   DIRECT_URL            — Neon postgres direct connection (for migrations)
+#   UPSTASH_REDIS_REST_URL
+#   UPSTASH_REDIS_REST_TOKEN
+#   CLERK_SECRET_KEY
+#   CLERK_WEBHOOK_SECRET
+#   ANTHROPIC_API_KEY
+#   COMPOSIO_API_KEY
+#   FAL_KEY
+#   RESEND_API_KEY
+#   ENCRYPTION_KEY        — 32-char random hex string
+#   WEB_URL               — https://agentcity.app (your Vercel domain)
+#   PORT                  — Railway injects this automatically
