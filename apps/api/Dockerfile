@@ -3,6 +3,7 @@ RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 
 # ── deps ──────────────────────────────────────────────────────────
 FROM base AS deps
+RUN apk add --no-cache openssl
 WORKDIR /app
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY packages/ packages/
@@ -17,6 +18,7 @@ RUN pnpm --filter @agentcity/api exec prisma generate && \
 
 # ── runner ────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
+RUN apk add --no-cache openssl
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 WORKDIR /app
 ENV NODE_ENV=production
