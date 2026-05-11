@@ -30,13 +30,14 @@ export async function generateAndSendBriefs(): Promise<void> {
 }
 
 async function generateBriefForUser(
-  user: Awaited<ReturnType<typeof prisma.user.findMany>>[0],
+  user: any,
   since: Date,
   weekOf: string,
 ): Promise<void> {
   // Aggregate task stats per agent for the week
   const agentStats = await Promise.all(
-    user.agents.map(async (agent) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (user.agents as any[]).map(async (agent) => {
       const [tasks, topSaved, scheduleCount] = await Promise.all([
         prisma.task.findMany({
           where:   { agentId: agent.id, status: 'COMPLETE', completedAt: { gte: since } },
@@ -58,7 +59,7 @@ async function generateBriefForUser(
     })
   )
 
-  const totalTasks   = agentStats.reduce((s, a) => s + a.tasks.length, 0)
+  const totalTasks   = agentStats.reduce((s: number, a: any) => s + a.tasks.length, 0)
   const creditsUsed  = await prisma.creditEntry.aggregate({
     where:  { userId: user.id, reason: 'TASK_CONSUMPTION', createdAt: { gte: since } },
     _sum:   { amount: true },
@@ -76,10 +77,10 @@ async function generateBriefForUser(
     if (tasks.length === 0) continue
 
     const memContext = agent.memories.length
-      ? `Agent memories: ${agent.memories.map((m) => `${m.key}: ${m.value}`).join('; ')}`
+      ? `Agent memories: ${(agent.memories as any[]).map((m) => `${m.key}: ${m.value}`).join('; ')}`
       : ''
 
-    const taskList = tasks.slice(0, 5).map((t) => t.title).join(', ')
+    const taskList = tasks.slice(0, 5).map((t: any) => t.title as string).join(', ')
 
     const rec = await client.messages.create({
       model:      'claude-haiku-4-5-20251001',
