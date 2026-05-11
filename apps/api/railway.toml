@@ -24,5 +24,5 @@ restartPolicyMaxRetries = 3
 #   FAL_KEY
 #   RESEND_API_KEY
 #   ENCRYPTION_KEY        — 32-char random hex string
-#   WEB_URL               — https://agentcity.app (your Vercel domain)
+#   WEB_URL               — https://slateops.tech (your Vercel domain)
 #   PORT                  — Railway injects this automatically

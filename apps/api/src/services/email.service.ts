@@ -26,7 +26,7 @@ export async function sendWeeklyBrief(data: BriefData): Promise<void> {
   const resend = getResend()
 
   await resend.emails.send({
-    from:    'AgentCity <briefs@agentcity.app>',
+    from:    'SlateOps <briefs@slateops.tech>',
     to:      data.userEmail,
     subject: `Your office brief — week of ${data.weekOf}`,
     html:    renderBrief(data),
@@ -117,13 +117,13 @@ function renderBrief(d: BriefData): string {
         <!-- CTA -->
         <tr>
           <td style="padding:20px 32px 28px;text-align:center;border-top:1px solid #1e2540">
-            <a href="${process.env.WEB_URL ?? 'https://agentcity.app'}/office"
+            <a href="${process.env.WEB_URL ?? 'https://slateops.tech'}/office"
                style="display:inline-block;background:#4d7fff;color:#ffffff;font-size:13px;
                       font-weight:600;padding:10px 24px;border-radius:10px;text-decoration:none">
               Open your office →
             </a>
             <p style="margin:16px 0 0;color:#8892b0;font-size:11px">
-              AgentCity · <a href="${process.env.WEB_URL ?? 'https://agentcity.app'}/settings"
+              SlateOps · <a href="${process.env.WEB_URL ?? 'https://slateops.tech'}/settings"
               style="color:#4d7fff;text-decoration:none">manage brief preferences</a>
             </p>
           </td>

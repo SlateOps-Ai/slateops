@@ -6,8 +6,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 export const metadata: Metadata = {
-  title: 'AgentCity — Your AI-powered office',
-  description: 'Watch your AI team work in real time.',
+  title: 'SlateOps — Your AI-powered office',
+  description: 'Direct your AI agents. Watch them work in real time.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

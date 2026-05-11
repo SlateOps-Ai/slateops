@@ -192,7 +192,7 @@ async function start() {
   // ── Start ────────────────────────────────────────────────────────
   const port = parseInt(process.env.PORT ?? '4000')
   await app.listen({ port, host: '0.0.0.0' })
-  console.log(`AgentCity API listening on :${port}`)
+  console.log(`SlateOps API listening on :${port}`)
 }
 
 start().catch((err) => {
