@@ -31,7 +31,7 @@ export default async function integrationsRoute(app: FastifyInstance) {
 
     const connection = await entity.initiateConnection({
       appName:     provider,
-      redirectUrl: callbackUrl,
+      redirectUri: callbackUrl,
     })
 
     return reply.send({ redirectUrl: connection.redirectUrl })
@@ -54,7 +54,7 @@ export default async function integrationsRoute(app: FastifyInstance) {
     let composioConnected: string[] = []
     try {
       const accounts = await entity.getConnections()
-      composioConnected = accounts.map((a: any) => a.appName?.toLowerCase() ?? '')
+      composioConnected = (accounts as any[]).map((a) => a.appName?.toLowerCase() ?? '')
     } catch {
       // Composio unreachable — fall back to DB
     }

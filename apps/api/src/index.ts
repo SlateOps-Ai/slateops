@@ -50,8 +50,8 @@ async function start() {
   const { default: authPlugin }   = await import('./plugins/auth.js')
   const { default: socketPlugin } = await import('./plugins/socket.js')
 
-  await app.register(authPlugin)
-  await app.register(socketPlugin)
+  await app.register(authPlugin as any)
+  await app.register(socketPlugin as any)
 
   // ── Routes ──────────────────────────────────────────────────────
   const { default: agentsRoute }        = await import('./routes/agents/create.js')

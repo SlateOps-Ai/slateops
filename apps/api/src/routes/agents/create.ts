@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import * as fal from '@fal-ai/client'
+import { fal } from '@fal-ai/client'
 import { prisma } from '../../lib/prisma.js'
 
 const createSchema = z.object({

@@ -259,7 +259,7 @@ export async function getCompiledGraph() {
   const checkpointer = new PostgresSaver(pool)
   await checkpointer.setup()
 
-  _compiled = graph.compile({ checkpointer })
+  _compiled = graph.compile({ checkpointer: checkpointer as any })
   return _compiled
 }
 

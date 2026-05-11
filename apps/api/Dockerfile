@@ -12,8 +12,8 @@ RUN pnpm install --frozen-lockfile --filter @agentcity/api...
 # ── build + prisma generate ───────────────────────────────────────
 FROM deps AS builder
 COPY apps/api/ apps/api/
-RUN pnpm --filter @agentcity/api run build && \
-    pnpm --filter @agentcity/api exec prisma generate
+RUN pnpm --filter @agentcity/api exec prisma generate && \
+    pnpm --filter @agentcity/api run build
 
 # ── runner ────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
