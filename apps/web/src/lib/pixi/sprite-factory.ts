@@ -148,10 +148,10 @@ export interface AnimationSet {
 }
 
 export class SpriteFactory {
-  private renderer: PIXI.IRenderer
+  private renderer: PIXI.Renderer
   private cache = new Map<string, PIXI.Texture>()
 
-  constructor(renderer: PIXI.IRenderer) {
+  constructor(renderer: PIXI.Renderer) {
     this.renderer = renderer
   }
 
