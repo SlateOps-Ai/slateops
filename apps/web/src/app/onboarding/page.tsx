@@ -188,7 +188,7 @@ export default function OnboardingPage() {
     try {
       const res = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/agents/avatar`, {
         method: 'POST',
-        body: JSON.stringify({ style: state.avatarStyle, seed: state.name }),
+        body: JSON.stringify({ style: state.avatarStyle, seed: state.name, presentation: state.presentation }),
       })
       if (!res.ok) throw new Error(`${res.status}`)
       const data = await res.json()
