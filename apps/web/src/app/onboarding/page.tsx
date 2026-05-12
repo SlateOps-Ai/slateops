@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useAuth } from '@clerk/nextjs'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { AgentRole, AvatarStyle, AvatarPresentation } from '@agentcity/types'
 import {
@@ -54,27 +55,28 @@ const INTEGRATION_LABELS: Record<string, { title: string; subtitle: string }> = 
 }
 
 interface ConnectStepProps {
-  agentName: string
-  agentId:   string
-  role:      AgentRole
-  onSkip:    () => void
+  agentName:   string
+  agentId:     string
+  role:        AgentRole
+  getToken:    () => Promise<string | null>
+  onSkip:      () => void
   onConnected: (provider: string) => void
 }
 
-function ConnectStep({ agentName, agentId, role, onSkip, onConnected }: ConnectStepProps) {
+function ConnectStep({ agentName, agentId, role, getToken, onSkip, onConnected }: ConnectStepProps) {
   const searchParams = useSearchParams()
   const [connecting, setConnecting] = useState<string | null>(null)
   const integrations = ROLE_INTEGRATIONS[role] ?? []
 
   const handleCallback = useCallback(async (provider: string) => {
+    const token = await getToken()
     await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/integrations/callback`, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ provider, agentId }),
     })
     onConnected(provider)
-  }, [agentId, onConnected])
+  }, [agentId, getToken, onConnected])
 
   useEffect(() => {
     const connected = searchParams.get('connected')
@@ -84,10 +86,10 @@ function ConnectStep({ agentName, agentId, role, onSkip, onConnected }: ConnectS
   async function connect(provider: string) {
     setConnecting(provider)
     try {
+      const token = await getToken()
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/integrations/connect`, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ provider, agentId }),
       })
       const data = await res.json()
@@ -153,6 +155,7 @@ function ConnectStep({ agentName, agentId, role, onSkip, onConnected }: ConnectS
 
 export default function OnboardingPage() {
   const router = useRouter()
+  const { getToken } = useAuth()
   const [step, setStep] = useState<Step>('role')
   const [generating, setGenerating] = useState(false)
   const [state, setState] = useState<OnboardingState>({
@@ -171,18 +174,21 @@ export default function OnboardingPage() {
     setState((s) => ({ ...s, ...partial }))
   }
 
+  async function authFetch(url: string, options: RequestInit = {}) {
+    const token = await getToken()
+    return fetch(url, {
+      ...options,
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, ...(options.headers ?? {}) },
+    })
+  }
+
   async function generateAvatar() {
     if (!state.name || !state.role) return
     setGenerating(true)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/agents/avatar`, {
+      const res = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/agents/avatar`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          style:        state.avatarStyle,
-          presentation: state.presentation,
-        }),
+        body: JSON.stringify({ style: state.avatarStyle, seed: state.name }),
       })
       const data = await res.json()
       patch({ avatarUrl: data.url })
@@ -192,10 +198,8 @@ export default function OnboardingPage() {
   }
 
   async function createAgent() {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/agents`, {
+    const res = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/agents`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({
         name:         state.name,
         role:         state.role,
@@ -214,26 +218,20 @@ export default function OnboardingPage() {
     setStep('gift')
     const command = GIFT_TASKS[state.role!].withoutIntegration
 
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/tasks`, {
+    const res = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/tasks`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({ agentId, rawCommand: command }),
     })
     const data = await res.json()
     patch({ taskId: data.task.id })
 
-    // Poll for completion (simple approach; real app uses WebSocket)
     await pollTask(data.task.id)
   }
 
   async function pollTask(taskId: string) {
     for (let i = 0; i < 60; i++) {
       await new Promise((r) => setTimeout(r, 3000))
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/tasks/${taskId}`,
-        { credentials: 'include' }
-      )
+      const res = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/tasks/${taskId}`)
       const data = await res.json()
       if (data.task.status === 'COMPLETE' || data.task.status === 'FAILED') {
         patch({ taskResult: data.task.result })
@@ -379,6 +377,7 @@ export default function OnboardingPage() {
               agentName={state.name}
               agentId={state.agentId}
               role={state.role!}
+              getToken={getToken}
               onSkip={() => runGiftTask(state.agentId!)}
               onConnected={(provider: string) => {
                 patch({ connectedProvider: provider })
