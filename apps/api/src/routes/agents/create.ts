@@ -1,6 +1,5 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { fal } from '@fal-ai/client'
 import { prisma } from '../../lib/prisma.js'
 
 const createSchema = z.object({
@@ -16,26 +15,28 @@ const createSchema = z.object({
 const avatarSchema = z.object({
   style:        z.enum(['PROFESSIONAL', 'CREATIVE', 'CASUAL', 'EXECUTIVE']),
   presentation: z.enum(['FEMININE', 'MASCULINE', 'NEUTRAL']),
+  seed:         z.string().optional(),
 })
 
-const STYLE_PROMPTS: Record<string, string> = {
-  PROFESSIONAL: 'business professional, crisp white shirt, clean background',
-  CREATIVE:     'creative professional, colorful background, modern style',
-  CASUAL:       'smart casual, friendly expression, warm background',
-  EXECUTIVE:    'corporate executive, formal suit, confident posture',
+// Background palette per avatar style
+const STYLE_BG: Record<string, string> = {
+  PROFESSIONAL: 'b6e3f4',
+  CREATIVE:     'ffd5dc',
+  CASUAL:       'd1d4f9',
+  EXECUTIVE:    'c0aede',
 }
 
-const PRESENTATION_PROMPTS: Record<string, string> = {
-  FEMININE: 'woman',
-  MASCULINE: 'man',
-  NEUTRAL:  'person with neutral features',
+function dicebearUrl(seed: string, style: string): string {
+  const bg  = STYLE_BG[style] ?? 'b6e3f4'
+  const enc = encodeURIComponent(seed)
+  return `https://api.dicebear.com/9.x/notionists/svg?seed=${enc}&backgroundColor=${bg}&radius=50`
 }
 
 function buildSystemPrompt(role: string, name: string, personality?: string): string {
   const roleDescriptions: Record<string, string> = {
-    EXEC_ASSISTANT:  'executive assistant specialising in email management, scheduling, and professional communication',
+    EXEC_ASSISTANT:   'executive assistant specialising in email management, scheduling, and professional communication',
     RESEARCH_ANALYST: 'research analyst who produces detailed, well-sourced briefings and competitive intelligence',
-    CONTENT_WRITER:  'content writer who creates engaging, on-brand written content across formats',
+    CONTENT_WRITER:   'content writer who creates engaging, on-brand written content across formats',
     SALES_PROSPECTOR: 'sales development specialist who identifies and qualifies potential clients',
     OPS_COORDINATOR:  'operations coordinator who keeps projects organised and running smoothly',
   }
@@ -57,28 +58,10 @@ const AGENT_DESK_POSITIONS = [
 
 export default async function agentsRoute(app: FastifyInstance) {
 
-  // Generate avatar preview
+  // Return a deterministic DiceBear avatar URL (no external call needed)
   app.post('/api/agents/avatar', async (req, reply) => {
-    const { style, presentation } = avatarSchema.parse(req.body)
-
-    fal.config({ credentials: process.env.FAL_KEY })
-
-    const prompt = `Illustrated professional portrait, ${PRESENTATION_PROMPTS[presentation]},
-${STYLE_PROMPTS[style]}, flat illustration style, high quality, square crop,
-consistent art style, soft lighting, no text`
-
-    const result = await fal.run('fal-ai/flux/schnell', {
-      input: {
-        prompt,
-        image_size:        'square',
-        num_inference_steps: 4,
-        num_images:        1,
-      },
-    })
-
-    const url = (result as any).images?.[0]?.url
-    if (!url) return reply.code(500).send({ error: 'Avatar generation failed' })
-
+    const { style, seed } = avatarSchema.parse(req.body)
+    const url = dicebearUrl(seed ?? `preview-${style}`, style)
     return reply.send({ url })
   })
 
@@ -94,18 +77,8 @@ consistent art style, soft lighting, no text`
     const existingCount = await prisma.agent.count({ where: { userId } })
     const deskPosition  = AGENT_DESK_POSITIONS[existingCount % AGENT_DESK_POSITIONS.length]
 
-    // Generate avatar if not provided
-    let avatarUrl = body.avatarUrl
-    if (!avatarUrl) {
-      fal.config({ credentials: process.env.FAL_KEY })
-      const prompt = `Illustrated professional portrait, ${PRESENTATION_PROMPTS[body.presentation]},
-${STYLE_PROMPTS[body.avatarStyle]}, flat illustration style, high quality, square crop`
-
-      const result = await fal.run('fal-ai/flux/schnell', {
-        input: { prompt, image_size: 'square', num_inference_steps: 4, num_images: 1 },
-      })
-      avatarUrl = (result as any).images?.[0]?.url ?? ''
-    }
+    // Generate deterministic avatar based on agent name + role
+    const avatarUrl = body.avatarUrl ?? dicebearUrl(`${body.name}-${body.role}`, body.avatarStyle)
 
     const agent = await prisma.agent.create({
       data: {
@@ -116,14 +89,13 @@ ${STYLE_PROMPTS[body.avatarStyle]}, flat illustration style, high quality, squar
         systemPrompt:       buildSystemPrompt(body.role, body.name, body.personality),
         personality:        body.personality,
         contextBrief:       body.contextBrief,
-        avatarUrl:          avatarUrl ?? '',
+        avatarUrl,
         avatarStyle:        body.avatarStyle,
         avatarPresentation: body.presentation,
         deskPosition,
       },
     })
 
-    // Seed first memory from contextBrief so the moat starts accumulating immediately
     if (body.contextBrief?.trim()) {
       await prisma.agentMemory.create({
         data: {
