@@ -15,8 +15,8 @@ export default fp(async function authPlugin(app: FastifyInstance) {
   app.decorateRequest('dbUserId', '')
 
   app.addHook('preHandler', async (req: FastifyRequest, reply: FastifyReply) => {
-    // Skip auth for health check
-    if (req.url === '/health') return
+    // Skip auth for health check and Clerk webhook (verified by svix signature)
+    if (req.url === '/health' || req.url === '/api/clerk/webhook') return
 
     const header = req.headers.authorization
     if (!header?.startsWith('Bearer ')) {

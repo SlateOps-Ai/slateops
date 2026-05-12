@@ -60,6 +60,10 @@ async function start() {
   const { default: approveTaskRoute }   = await import('./routes/tasks/approve.js')
   const { default: libraryRoute }       = await import('./routes/tasks/library.js')
   const { default: integrationsRoute }  = await import('./routes/integrations/connect.js')
+  const { default: clerkWebhookRoute }  = await import('./routes/clerk/webhook.js')
+
+  // Webhook registered without fp() so its content-type parser override stays scoped
+  await app.register(clerkWebhookRoute as any)
 
   await app.register(fp(agentsRoute as any))
   await app.register(fp(memoryRoute as any))

@@ -71,6 +71,9 @@ importers:
       socket.io:
         specifier: ^4.7.5
         version: 4.8.3
+      svix:
+        specifier: ^1.24.0
+        version: 1.92.2
       zod:
         specifier: ^3.23.8
         version: 3.25.76
