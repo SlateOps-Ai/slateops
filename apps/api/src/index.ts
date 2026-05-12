@@ -37,8 +37,11 @@ function computeNext(expr: string): Date {
 
 async function start() {
   // ── Core plugins ────────────────────────────────────────────────
+  const allowedOrigins = (process.env.WEB_URL ?? 'http://localhost:3000')
+    .split(',').map((s) => s.trim()).filter(Boolean)
+
   await app.register(cors, {
-    origin:      process.env.WEB_URL ?? 'http://localhost:3000',
+    origin:      allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
     credentials: true,
   })
 

@@ -190,8 +190,12 @@ export default function OnboardingPage() {
         method: 'POST',
         body: JSON.stringify({ style: state.avatarStyle, seed: state.name }),
       })
+      if (!res.ok) throw new Error(`${res.status}`)
       const data = await res.json()
       patch({ avatarUrl: data.url })
+    } catch (err) {
+      console.error('Avatar generation failed:', err)
+      alert(`Could not generate avatar: ${err instanceof Error ? err.message : 'unknown error'}`)
     } finally {
       setGenerating(false)
     }
