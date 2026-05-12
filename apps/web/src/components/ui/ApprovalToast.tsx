@@ -4,11 +4,13 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAgentsStore } from '@/stores/agents.store'
 import { cn } from '@/lib/utils'
+import { useAuthFetch } from '@/hooks/useAuthFetch'
 
 export function ApprovalToast() {
   const approval        = useAgentsStore((s) => s.pendingApproval)
   const setPending      = useAgentsStore((s) => s.setPendingApproval)
   const [loading, setLoading] = useState<'approve' | 'cancel' | null>(null)
+  const authFetch = useAuthFetch()
 
   if (!approval) return null
 
@@ -16,12 +18,10 @@ export function ApprovalToast() {
     if (!approval) return
     setLoading(status === 'APPROVED' ? 'approve' : 'cancel')
     try {
-      await fetch(
+      await authFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/tasks/${approval.taskId}/approve`,
         {
           method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify({ status }),
         }
       )

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { BookOpen, Play, Calendar, Trash2, X, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAuthFetch } from '@/hooks/useAuthFetch'
 
 interface SavedCommand {
   id:         string
@@ -39,39 +40,35 @@ export function CommandLibrary() {
   const [cronExpr, setCronExpr]       = useState('0 9 * * 1')
   const [cronLabel, setCronLabel]     = useState('Every Monday 9am')
   const [running, setRunning]         = useState<string | null>(null)
+  const authFetch = useAuthFetch()
 
   const load = useCallback(async () => {
     const [cmdRes, schRes] = await Promise.all([
-      fetch(`${API}/api/library`, { credentials: 'include' }),
-      fetch(`${API}/api/library/schedules`, { credentials: 'include' }),
+      authFetch(`${API}/api/library`),
+      authFetch(`${API}/api/library/schedules`),
     ])
     const [cmdData, schData] = await Promise.all([cmdRes.json(), schRes.json()])
     setCommands(cmdData.commands ?? [])
     setSchedules(schData.schedules ?? [])
-  }, [])
+  }, [authFetch])
 
   useEffect(() => { if (open) load() }, [open, load])
 
   async function runAgain(cmd: SavedCommand) {
     setRunning(cmd.id)
-    await fetch(`${API}/api/library/${cmd.id}/run`, {
-      method: 'POST',
-      credentials: 'include',
-    })
+    await authFetch(`${API}/api/library/${cmd.id}/run`, { method: 'POST' })
     setRunning(null)
     setOpen(false)
   }
 
   async function remove(id: string) {
-    await fetch(`${API}/api/library/${id}`, { method: 'DELETE', credentials: 'include' })
+    await authFetch(`${API}/api/library/${id}`, { method: 'DELETE' })
     setCommands((prev) => prev.filter((c) => c.id !== id))
   }
 
   async function saveSchedule(savedCommandId: string) {
-    await fetch(`${API}/api/library/schedule`, {
+    await authFetch(`${API}/api/library/schedule`, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({ savedCommandId, cronExpr, label: cronLabel }),
     })
     setScheduling(null)
@@ -79,7 +76,7 @@ export function CommandLibrary() {
   }
 
   async function cancelSchedule(id: string) {
-    await fetch(`${API}/api/library/schedules/${id}`, { method: 'DELETE', credentials: 'include' })
+    await authFetch(`${API}/api/library/schedules/${id}`, { method: 'DELETE' })
     setSchedules((prev) => prev.filter((s) => s.id !== id))
   }
 

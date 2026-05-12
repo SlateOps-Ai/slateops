@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAuthFetch } from '@/hooks/useAuthFetch'
 
 interface Memory { key: string; value: string }
 
@@ -20,23 +21,22 @@ export function MemoryPanel({ agentId, agentName, onClose }: MemoryPanelProps) {
   const [newVal, setNewVal]     = useState('')
   const [saving, setSaving]     = useState(false)
   const keyRef = useRef<HTMLInputElement>(null)
+  const authFetch = useAuthFetch()
 
   const API = process.env.NEXT_PUBLIC_API_URL
 
   useEffect(() => {
-    fetch(`${API}/api/agents/${agentId}/memory`, { credentials: 'include' })
+    authFetch(`${API}/api/agents/${agentId}/memory`)
       .then((r) => r.json())
       .then((d) => setMemories(d.memories ?? []))
       .catch(() => {})
-  }, [agentId, API])
+  }, [agentId, API, authFetch])
 
   async function save() {
     if (!newKey.trim() || !newVal.trim()) return
     setSaving(true)
-    const res = await fetch(`${API}/api/agents/${agentId}/memory`, {
+    const res = await authFetch(`${API}/api/agents/${agentId}/memory`, {
       method:  'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({ key: newKey.trim(), value: newVal.trim() }),
     })
     const data = await res.json()
@@ -49,9 +49,8 @@ export function MemoryPanel({ agentId, agentName, onClose }: MemoryPanelProps) {
   }
 
   async function remove(key: string) {
-    await fetch(`${API}/api/agents/${agentId}/memory/${encodeURIComponent(key)}`, {
+    await authFetch(`${API}/api/agents/${agentId}/memory/${encodeURIComponent(key)}`, {
       method: 'DELETE',
-      credentials: 'include',
     })
     setMemories((prev) => prev.filter((m) => m.key !== key))
   }

@@ -17,7 +17,15 @@ const actorRegistry = new Map<string, ReturnType<typeof createActor>>()
 
 export function useAgentEvents(scene: OfficeScene | null) {
   const { getToken } = useAuth()
-  const { agents, setDirectorActor, updateStatus, setActiveTask, setPendingApproval } = useAgentsStore()
+  const {
+    agents,
+    setDirectorActor,
+    updateStatus,
+    setActiveTask,
+    setPendingApproval,
+    upsertTask,
+    setCompletedTask,
+  } = useAgentsStore()
 
   useEffect(() => {
     let unsubscribe: (() => void) | null = null
@@ -28,7 +36,6 @@ export function useAgentEvents(scene: OfficeScene | null) {
 
       connectSocket(token)
 
-      // One factory per scene — shared across all agent sprites
       const factory = new SpriteFactory(scene.app.renderer as any)
 
       agents.forEach((agent, index) => {
@@ -41,15 +48,11 @@ export function useAgentEvents(scene: OfficeScene | null) {
         })
         actor.start()
 
-        // Spawn Pixi sprite, hand it the shared factory
         const sprite = new AgentSpriteGroup(agent.id, agent.name, agent.avatarUrl, factory)
         scene.layers.agents.addChild(sprite.container)
         sprite.setPosition(80, 620)
 
-        // Wire Pixi into the XState machine
         actor.send({ type: 'INIT', sprite, scene })
-
-        // Drive walk animation each frame
         scene.app.ticker.add(() => sprite.tick())
 
         actorRegistry.set(agent.id, actor)
@@ -60,8 +63,11 @@ export function useAgentEvents(scene: OfficeScene | null) {
         const actor = actorRegistry.get(event.agentId)
         if (!actor) return
 
+        const agentObj = agents.find((a) => a.id === event.agentId)
+
         switch (event.type) {
           case 'TASK_ASSIGNED':
+            upsertTask({ id: event.taskId, agentId: event.agentId, status: 'IN_PROGRESS' })
             setActiveTask(event.agentId, event.taskId)
             updateStatus(event.agentId, 'WORKING')
             actor.send({ type: 'TASK_ASSIGNED', taskId: event.taskId, payload: event.payload })
@@ -76,7 +82,6 @@ export function useAgentEvents(scene: OfficeScene | null) {
             actor.send({ type: 'NEEDS_APPROVAL', payload: event.payload })
             const ar = (event.payload as any).approvalRequest
             if (ar) {
-              const agentObj = agents.find((a) => a.id === event.agentId)
               setPendingApproval({
                 requestId:   ar.id,
                 taskId:      ar.taskId,
@@ -98,12 +103,31 @@ export function useAgentEvents(scene: OfficeScene | null) {
             updateStatus(event.agentId, 'IDLE')
             setActiveTask(event.agentId, null)
             setPendingApproval(null)
+            upsertTask({ id: event.taskId, agentId: event.agentId, status: 'COMPLETE' })
+            setCompletedTask({
+              taskId:    event.taskId,
+              agentId:   event.agentId,
+              agentName: agentObj?.name ?? 'Agent',
+              title:     (event.payload.result?.title ?? 'Task complete'),
+              result:    event.payload.result ?? null,
+              status:    'COMPLETE',
+            })
             actor.send({ type: 'TASK_COMPLETE', payload: event.payload })
             break
           case 'TASK_FAILED':
             updateStatus(event.agentId, 'IDLE')
             setActiveTask(event.agentId, null)
             setPendingApproval(null)
+            upsertTask({ id: event.taskId, agentId: event.agentId, status: 'FAILED' })
+            setCompletedTask({
+              taskId:    event.taskId,
+              agentId:   event.agentId,
+              agentName: agentObj?.name ?? 'Agent',
+              title:     'Task failed',
+              result:    null,
+              status:    'FAILED',
+              error:     event.payload.error?.userFacing ?? 'Something went wrong',
+            })
             actor.send({ type: 'TASK_FAILED', payload: event.payload })
             break
           case 'TASK_BLOCKED':

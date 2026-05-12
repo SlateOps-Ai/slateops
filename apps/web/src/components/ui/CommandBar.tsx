@@ -4,6 +4,8 @@ import { useState, useRef } from 'react'
 import { Mic, Send, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
+import { useAuthFetch } from '@/hooks/useAuthFetch'
+import { useAgentsStore } from '@/stores/agents.store'
 
 type State = 'idle' | 'loading' | 'clarifying' | 'error'
 
@@ -14,6 +16,8 @@ export function CommandBar() {
   const [errorMsg, setErrorMsg]   = useState('')
   const [listening, setListening] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const authFetch  = useAuthFetch()
+  const upsertTask = useAgentsStore((s) => s.upsertTask)
 
   async function submit(cmd = value.trim()) {
     if (!cmd || state === 'loading') return
@@ -23,10 +27,8 @@ export function CommandBar() {
     setErrorMsg('')
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/tasks`, {
+      const res = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/tasks`, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ rawCommand: cmd }),
       })
 
@@ -48,6 +50,10 @@ export function CommandBar() {
         setErrorMsg(data.error ?? 'Something went wrong.')
         setState('error')
         return
+      }
+
+      if (data.task) {
+        upsertTask({ id: data.task.id, agentId: data.task.agentId, title: data.task.title, status: 'IN_PROGRESS' })
       }
 
       setState('idle')

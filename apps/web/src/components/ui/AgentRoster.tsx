@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import { AnimatePresence } from 'framer-motion'
+import { useRouter } from 'next/navigation'
+import { UserPlus } from 'lucide-react'
 import { useAgentsStore } from '@/stores/agents.store'
 import { MemoryPanel } from '@/components/ui/MemoryPanel'
 import { cn } from '@/lib/utils'
@@ -26,6 +28,7 @@ export function AgentRoster() {
   const agents        = useAgentsStore((s) => s.agents)
   const activeTaskIds = useAgentsStore((s) => s.activeTaskIds)
   const [openMemory, setOpenMemory] = useState<{ id: string; name: string } | null>(null)
+  const router = useRouter()
 
   return (
     <>
@@ -70,6 +73,14 @@ export function AgentRoster() {
             </div>
           </button>
         ))}
+
+        <button
+          onClick={() => router.push('/onboarding')}
+          className="flex items-center gap-2 rounded-xl border border-dashed border-white/15 px-3 py-2.5 w-full text-left text-panel-muted hover:text-white hover:border-white/30 hover:bg-white/5 transition-all mt-auto"
+        >
+          <UserPlus size={14} className="shrink-0" />
+          <span className="text-xs">Hire another agent</span>
+        </button>
       </aside>
 
       <AnimatePresence>
