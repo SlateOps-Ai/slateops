@@ -105,19 +105,24 @@ export default async function createTaskRoute(app: FastifyInstance) {
       executeTool,
     }).catch(async (err) => {
       console.error('Task graph error:', err)
-      await prisma.task.update({
-        where: { id: task.id },
-        data:  { status: 'FAILED' },
-      })
-      await prisma.agent.update({
-        where: { id: agent.id },
-        data:  { status: 'IDLE' },
-      })
-    }).finally(async () => {
-      await prisma.agent.update({
-        where: { id: agent.id },
-        data:  { status: 'IDLE' },
-      })
+      await Promise.all([
+        prisma.task.update({ where: { id: task.id }, data: { status: 'FAILED' } }),
+        prisma.agent.update({ where: { id: agent.id }, data: { status: 'IDLE' } }),
+      ])
+      // Notify the client so the office can react (lamps, result panel)
+      await emitEvent(agent.id, {
+        type:    'TASK_FAILED',
+        taskId:  task.id,
+        agentId: agent.id,
+        payload: {
+          thoughtBubble: 'Something went wrong',
+          error: {
+            message:    err?.message ?? 'Unknown error',
+            userFacing: 'The task ran into an error. Please try again.',
+            retryable:  true,
+          },
+        },
+      }).catch(() => {})
     })
 
     return reply.code(202).send({ task: { id: task.id, title: taskTitle, agentId: agent.id } })

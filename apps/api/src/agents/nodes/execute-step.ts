@@ -61,7 +61,11 @@ export async function executeStepNode(state: AgentGraphState): Promise<Partial<A
 
 
   // Agentic loop: keep calling LLM until it stops using tools
+  let loopGuard = 0
   while (true) {
+    if (++loopGuard > 20) {
+      return { error: 'Agent exceeded maximum tool call iterations', currentStepIndex: currentStepIndex + 1 }
+    }
     const response = await client.messages.create({
       model:      'claude-sonnet-4-6',
       max_tokens: 4096,
@@ -162,7 +166,7 @@ function buildTools(role: string): Anthropic.Tool[] {
   })) ?? []
 }
 
-function summariseTool(toolName: string, output: unknown): string {
+function summariseTool(toolName: string, _output: unknown): string {
   if (toolName.includes('SEARCH'))  return 'Found results, reading…'
   if (toolName.includes('GMAIL'))   return 'Email processed'
   if (toolName.includes('CALENDAR')) return 'Calendar updated'
