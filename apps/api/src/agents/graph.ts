@@ -7,7 +7,6 @@ import { prisma } from '../lib/prisma.js'
 import { emitEvent } from '../services/events.service.js'
 import { executeStepNode } from './nodes/execute-step.js'
 import { needsApprovalNode } from './nodes/needs-approval.js'
-import type { AgentRole } from '@agentcity/types'
 
 // ── State Schema ───────────────────────────────────────────────────────────
 
@@ -72,6 +71,78 @@ interface FinalResult {
   content: unknown
 }
 
+// ── Post-task helpers ──────────────────────────────────────────────────────
+
+async function extractAndSaveMemories(
+  agentId: string,
+  rawCommand: string,
+  stepOutputs: Array<{ step: string; output: string }>,
+  byokKey?: string,
+): Promise<void> {
+  try {
+    const { getAnthropicClient } = await import('../lib/claude.js')
+    const client = getAnthropicClient(byokKey)
+
+    const response = await client.messages.create({
+      model:      'claude-haiku-4-5-20251001',
+      max_tokens: 256,
+      system: `Extract 0-3 memorable facts about the user's working context, preferences, or style
+from this completed task. Only extract facts useful for future tasks (tone preferences, industry, brand voice, recurring patterns).
+Return ONLY JSON: {"memories":[{"key":"snake_case_name","value":"concise fact"}]}
+Keys ≤40 chars, values ≤200 chars. Return {"memories":[]} if nothing meaningful.`,
+      messages: [{
+        role:    'user',
+        content: `Task: ${rawCommand}\n\nOutputs:\n${stepOutputs.map((s) => s.output).join('\n\n').slice(0, 1500)}`,
+      }],
+    })
+
+    const text = response.content
+      .filter((b) => b.type === 'text')
+      .map((b) => (b as { text: string }).text)
+      .join('')
+
+    const { memories } = JSON.parse(text)
+    for (const mem of (memories as Array<{ key: string; value: string }>)) {
+      if (!mem.key || !mem.value) continue
+      await prisma.agentMemory.upsert({
+        where:  { agentId_key: { agentId, key: mem.key } },
+        create: { agentId, key: mem.key, value: mem.value },
+        update: { value: mem.value },
+      })
+    }
+  } catch { /* non-fatal */ }
+}
+
+async function sendTaskCompleteEmail(
+  agentId: string,
+  userId: string,
+  result: FinalResult,
+  taskTitle: string,
+): Promise<void> {
+  try {
+    const [agent, user] = await Promise.all([
+      prisma.agent.findUnique({ where: { id: agentId }, select: { name: true, avatarUrl: true } }),
+      prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } }),
+    ])
+    if (!agent || !user || user.email.endsWith('@clerk')) return
+
+    const { sendTaskComplete } = await import('../services/email.service.js')
+    const summary = typeof result.content === 'string'
+      ? result.content.slice(0, 600)
+      : JSON.stringify(result.content).slice(0, 600)
+
+    await sendTaskComplete({
+      agentName:      agent.name,
+      agentAvatarUrl: agent.avatarUrl ?? '',
+      userName:       user.name,
+      userEmail:      user.email,
+      taskTitle,
+      resultSummary:  summary,
+      officeUrl:      `${process.env.WEB_URL ?? 'https://slateops.tech'}/office`,
+    })
+  } catch { /* non-fatal */ }
+}
+
 // ── Nodes ─────────────────────────────────────────────────────────────────
 
 async function planStepsNode(state: AgentGraphState): Promise<Partial<AgentGraphState>> {
@@ -114,8 +185,15 @@ async function compileResultNode(state: AgentGraphState): Promise<Partial<AgentG
   const response = await client.messages.create({
     model:      'claude-haiku-4-5-20251001',
     max_tokens: 2048,
-    system:     `You compile step outputs into a final, polished result.
-Return ONLY JSON: {"type":"document|list|text","title":"string","content":"string or array"}`,
+    system: `You compile step outputs into a single polished result. Choose the most appropriate type:
+
+- "email_draft": when the result is an email to send. content = { "to": string, "subject": string, "body": string }
+- "calendar_event": when creating a meeting/event. content = { "title": string, "start": string, "end": string, "location": string }
+- "list": when the result is a set of items/findings. content = ["item 1", "item 2", ...]
+- "document": when the result is a report, analysis, or long-form content. content = "full text"
+- "text": for short answers or summaries. content = "text"
+
+Return ONLY valid JSON: {"type":"<type>","title":"<concise title>","content":<content matching the schema above>}`,
     messages: [
       {
         role: 'user',
@@ -189,6 +267,12 @@ Return ONLY JSON: {"type":"document|list|text","title":"string","content":"strin
       result: { type: result.type as any, title: result.title, content: result.content },
     },
   })
+
+  // Run memory extraction and email notification in parallel, non-blocking
+  Promise.all([
+    extractAndSaveMemories(state.agentId, state.rawCommand, state.stepOutputs, state.byokKey),
+    sendTaskCompleteEmail(state.agentId, state.agent.userId, result, state.taskTitle),
+  ]).catch((err) => console.error('Post-task hooks error:', err))
 
   return { finalResult: result }
 }

@@ -6,6 +6,79 @@ function getResend() {
   return _resend
 }
 
+export interface TaskCompleteData {
+  agentName:    string
+  agentAvatarUrl: string
+  userName:     string
+  userEmail:    string
+  taskTitle:    string
+  resultSummary: string
+  officeUrl:    string
+}
+
+export async function sendTaskComplete(data: TaskCompleteData): Promise<void> {
+  const resend = getResend()
+  await resend.emails.send({
+    from:    'SlateOps <briefs@slateops.tech>',
+    to:      data.userEmail,
+    subject: `${data.agentName} finished: ${data.taskTitle}`,
+    html:    renderTaskComplete(data),
+  })
+}
+
+function renderTaskComplete(d: TaskCompleteData): string {
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0d111f;font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr><td align="center" style="padding:32px 16px">
+      <table width="520" cellpadding="0" cellspacing="0"
+             style="background:#12172b;border-radius:16px;border:1px solid #1e2540;overflow:hidden">
+        <tr>
+          <td style="padding:28px 32px 20px;border-bottom:1px solid #1e2540">
+            <table cellpadding="0" cellspacing="0"><tr>
+              <td style="vertical-align:middle;padding-right:14px">
+                <img src="${d.agentAvatarUrl}" width="40" height="40"
+                     style="border-radius:50%;display:block" alt="${d.agentName}" />
+              </td>
+              <td style="vertical-align:middle">
+                <p style="margin:0 0 2px;color:#4dffa0;font-size:10px;font-weight:600;
+                          letter-spacing:0.1em;text-transform:uppercase">Task complete</p>
+                <p style="margin:0;color:#ffffff;font-size:17px;font-weight:700">${d.taskTitle}</p>
+              </td>
+            </tr></table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:20px 32px">
+            <p style="margin:0 0 8px;color:#8892b0;font-size:11px;font-weight:600;
+                      text-transform:uppercase;letter-spacing:0.08em">Result from ${d.agentName}</p>
+            <div style="background:#0f1426;border:1px solid #1e2540;border-radius:10px;
+                        padding:16px;color:#c8cfe0;font-size:13px;line-height:1.6;
+                        white-space:pre-wrap;word-break:break-word">${escapeHtml(d.resultSummary)}</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:8px 32px 28px;text-align:center">
+            <a href="${d.officeUrl}"
+               style="display:inline-block;background:#4d7fff;color:#ffffff;font-size:13px;
+                      font-weight:600;padding:10px 24px;border-radius:10px;text-decoration:none">
+              View in your office →
+            </a>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 export interface BriefData {
   userName:    string
   userEmail:   string

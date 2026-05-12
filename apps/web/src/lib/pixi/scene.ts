@@ -3,11 +3,11 @@ import * as PIXI from 'pixi.js'
 export type DeskKey = 'ceo' | 'agent_0' | 'agent_1' | 'agent_2' | 'door'
 
 export const DESK_POSITIONS: Record<DeskKey, { x: number; y: number }> = {
-  ceo:     { x: 640, y: 420 },
-  agent_0: { x: 360, y: 290 },
-  agent_1: { x: 920, y: 290 },
-  agent_2: { x: 360, y: 550 },
-  door:    { x: 80,  y: 640 },
+  ceo:     { x: 640, y: 460 },
+  agent_0: { x: 340, y: 340 },
+  agent_1: { x: 940, y: 340 },
+  agent_2: { x: 340, y: 580 },
+  door:    { x: 80,  y: 680 },
 }
 
 export const agentDeskKey = (index: number): DeskKey =>
@@ -34,9 +34,10 @@ const C = {
   floorOak:   0xc4956a,
   floorShadow:0xa87b52,
   floorLight: 0xd4a87a,
-  deskNavy:   0x2c3e6b,
-  deskMid:    0x3d5278,
-  deskLight:  0x4d6288,
+  deskNavy:   0x1e2d4d,
+  deskMid:    0x2a4070,
+  deskLight:  0x3a5898,
+  deskSurface:0x4a7cbf,
   rugWine:    0x8b2635,
   rugBorder:  0xf0c070,
   plant:      0x4a7c59,
@@ -69,6 +70,7 @@ export class OfficeScene {
   private resizeOb?: ResizeObserver
   private isNight  = false
   private timeOfDay = 0   // 0–1, animated slowly
+  private _initialized = false
 
   // ── Boot ──────────────────────────────────────────────────────
 
@@ -89,6 +91,7 @@ export class OfficeScene {
     this.startCameraLoop()
     this.startDayNightCycle()
     this.setupResize(canvas)
+    this._initialized = true
   }
 
   private buildLayers(): void {
@@ -273,7 +276,7 @@ export class OfficeScene {
 
   // ── Bookshelf ─────────────────────────────────────────────────
 
-  private drawBookshelf(W: number, H: number): void {
+  private drawBookshelf(_W: number, H: number): void {
     const x = 24
     const y = H * 0.38
     const sw = 80
@@ -350,7 +353,7 @@ export class OfficeScene {
 
   // ── CEO desk ──────────────────────────────────────────────────
 
-  private drawCeoDesk(W: number, H: number): void {
+  private drawCeoDesk(_W: number, _H: number): void {
     const pos  = DESK_POSITIONS.ceo
     const dw   = 140
     const dh   = 58
@@ -360,11 +363,11 @@ export class OfficeScene {
 
     // Top face
     g.roundRect(pos.x - dw / 2, pos.y - dh / 2, dw, dh, 5)
-      .fill({ color: C.deskNavy })
+      .fill({ color: C.deskSurface })
 
     // Front face (depth illusion)
     g.rect(pos.x - dw / 2, pos.y + dh / 2, dw, depth)
-      .fill({ color: C.deskMid })
+      .fill({ color: C.deskLight })
 
     // Drawer line
     g.rect(pos.x - dw / 2 + 8, pos.y + dh / 2 + 4, dw - 16, 2)
@@ -394,11 +397,11 @@ export class OfficeScene {
 
     // Top
     g.roundRect(pos.x - dw / 2, pos.y - dh / 2, dw, dh, 4)
-      .fill({ color: C.deskMid })
+      .fill({ color: C.deskSurface })
 
     // Front face
     g.rect(pos.x - dw / 2, pos.y + dh / 2, dw, depth)
-      .fill({ color: C.deskLight })
+      .fill({ color: C.deskMid })
 
     this.layers.furniture.addChild(g)
 
@@ -575,9 +578,10 @@ export class OfficeScene {
 
   destroy(): void {
     this.resizeOb?.disconnect()
+    if (!this._initialized) return
     this.monitors.forEach(m => {
       if (m.ticker) this.app.ticker.remove(m.ticker as PIXI.TickerCallback<unknown>)
     })
-    this.app.destroy(true)
+    try { this.app.destroy(true) } catch { /* ignore mid-init destroy */ }
   }
 }

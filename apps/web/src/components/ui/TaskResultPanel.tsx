@@ -1,7 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, CheckCircle, AlertCircle, FileText, Mail, Calendar, List } from 'lucide-react'
+import { X, CheckCircle, AlertCircle, FileText, Mail, Calendar, List, Copy, Check } from 'lucide-react'
 import { useAgentsStore } from '@/stores/agents.store'
 import { cn } from '@/lib/utils'
 import type { TaskResult } from '@agentcity/types'
@@ -76,6 +77,36 @@ function ResultBody({ result }: { result: TaskResult }) {
   )
 }
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  function copy() {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+  return (
+    <button
+      onClick={copy}
+      className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 bg-white/5 text-panel-muted hover:text-white hover:border-white/20 text-xs transition-all"
+    >
+      {copied ? <Check size={12} className="text-lamp-done" /> : <Copy size={12} />}
+      {copied ? 'Copied' : 'Copy'}
+    </button>
+  )
+}
+
+function getCopyText(result: TaskResult): string {
+  const c = result.content as any
+  if (result.type === 'email_draft') {
+    return [c?.to && `To: ${c.to}`, c?.subject && `Subject: ${c.subject}`, c?.body]
+      .filter(Boolean).join('\n')
+  }
+  if (result.type === 'list' && Array.isArray(c)) return c.join('\n')
+  if (typeof c === 'string') return c
+  return JSON.stringify(c, null, 2)
+}
+
 export function TaskResultPanel() {
   const completedTask   = useAgentsStore((s) => s.completedTask)
   const agents          = useAgentsStore((s) => s.agents)
@@ -145,7 +176,12 @@ export function TaskResultPanel() {
             </div>
 
             {/* Footer */}
-            <div className="flex justify-end px-4 pb-4">
+            <div className="flex items-center justify-between px-4 pb-4">
+              {completedTask.status === 'COMPLETE' && completedTask.result ? (
+                <CopyButton text={getCopyText(completedTask.result)} />
+              ) : (
+                <div />
+              )}
               <button
                 onClick={dismiss}
                 className="px-4 py-2 rounded-xl bg-white/10 border border-white/10 text-white text-xs font-medium hover:bg-white/15 transition-colors"

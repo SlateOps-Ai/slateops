@@ -1,4 +1,4 @@
-import { setup, assign, fromCallback } from 'xstate'
+import { setup, assign } from 'xstate'
 import type { AgentEvent } from '@agentcity/types'
 import type { AgentSpriteGroup } from '@/lib/pixi/agent-sprite'
 import type { OfficeScene, DeskKey } from '@/lib/pixi/scene'
@@ -63,6 +63,12 @@ export const directorMachine = setup({
 
     panToCeo: ({ context }) => {
       context.scene?.panToDesk('ceo')
+    },
+
+    snapToDesk: ({ context }) => {
+      const pos = DESK_POSITIONS[context.deskKey]
+      context.sprite?.setPosition(pos.x, pos.y)
+      context.sprite?.playAnimation('idle_seated')
     },
 
     walkToDeskAndSit: ({ context }) => {
@@ -160,7 +166,7 @@ export const directorMachine = setup({
 
   states: {
     uninitialized: {
-      on: { INIT: { target: 'idle', actions: 'initSprite' } },
+      on: { INIT: { target: 'idle', actions: ['initSprite', 'snapToDesk'] } },
     },
 
     idle: {

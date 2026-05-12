@@ -2,6 +2,7 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import cookie from '@fastify/cookie'
 import fp from 'fastify-plugin'
+import { ZodError } from 'zod'
 
 const app = Fastify({
   logger: {
@@ -35,6 +36,13 @@ function computeNext(expr: string): Date {
   return next
 }
 
+app.setErrorHandler((err, _req, reply) => {
+  if (err instanceof ZodError) {
+    return reply.code(422).send({ error: 'Validation failed', issues: err.errors })
+  }
+  reply.code(err.statusCode ?? 500).send({ error: err.message ?? 'Internal server error' })
+})
+
 async function start() {
   // ── Core plugins ────────────────────────────────────────────────
   const allowedOrigins = (process.env.WEB_URL ?? 'http://localhost:3000')
@@ -63,6 +71,7 @@ async function start() {
   const { default: approveTaskRoute }   = await import('./routes/tasks/approve.js')
   const { default: libraryRoute }       = await import('./routes/tasks/library.js')
   const { default: integrationsRoute }  = await import('./routes/integrations/connect.js')
+  const { default: settingsRoute }      = await import('./routes/user/settings.js')
   const { default: clerkWebhookRoute }  = await import('./routes/clerk/webhook.js')
 
   // Webhook registered without fp() so its content-type parser override stays scoped
@@ -74,6 +83,7 @@ async function start() {
   await app.register(fp(approveTaskRoute as any))
   await app.register(fp(libraryRoute as any))
   await app.register(fp(integrationsRoute as any))
+  await app.register(fp(settingsRoute as any))
 
   // ── Health ──────────────────────────────────────────────────────
   app.get('/health', async () => ({ status: 'ok', ts: new Date().toISOString() }))
