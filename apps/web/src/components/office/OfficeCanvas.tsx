@@ -13,6 +13,7 @@ import { ApprovalToast } from '@/components/ui/ApprovalToast'
 import { CommandLibrary } from '@/components/ui/CommandLibrary'
 import { TaskResultPanel } from '@/components/ui/TaskResultPanel'
 import { SettingsPanel } from '@/components/ui/SettingsPanel'
+import { OfficeStatusBar } from '@/components/ui/OfficeStatusBar'
 import { useAgentsStore } from '@/stores/agents.store'
 
 export function OfficeCanvas() {
@@ -68,6 +69,7 @@ export function OfficeCanvas() {
 
       {sceneReady && (
         <>
+          <OfficeStatusBar />
           <CommandBar />
           <AgentRoster />
           <TaskTimeline />

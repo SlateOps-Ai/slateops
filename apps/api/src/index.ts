@@ -66,6 +66,7 @@ async function start() {
 
   // ── Routes ──────────────────────────────────────────────────────
   const { default: agentsRoute }        = await import('./routes/agents/create.js')
+  const { default: suggestionsRoute }   = await import('./routes/agents/suggestions.js')
   const { default: memoryRoute }        = await import('./routes/agents/memory.js')
   const { default: createTaskRoute }    = await import('./routes/tasks/create.js')
   const { default: approveTaskRoute }   = await import('./routes/tasks/approve.js')
@@ -78,6 +79,7 @@ async function start() {
   await app.register(clerkWebhookRoute as any)
 
   await app.register(fp(agentsRoute as any))
+  await app.register(fp(suggestionsRoute as any))
   await app.register(fp(memoryRoute as any))
   await app.register(fp(createTaskRoute as any))
   await app.register(fp(approveTaskRoute as any))

@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useAuthFetch } from '@/hooks/useAuthFetch'
 import { useAgentsStore } from '@/stores/agents.store'
+import { SuggestionsBar } from '@/components/ui/SuggestionsBar'
 
 type State = 'idle' | 'loading' | 'clarifying' | 'error'
 
@@ -73,6 +74,8 @@ export function CommandBar() {
   const busy = state === 'loading'
 
   return (
+    <>
+    <SuggestionsBar onSelect={(cmd) => submit(cmd)} />
     <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 w-full max-w-2xl px-4 flex flex-col gap-2">
 
       {/* Clarification banner */}
@@ -162,5 +165,6 @@ export function CommandBar() {
         </button>
       </div>
     </div>
+    </>
   )
 }
