@@ -36,13 +36,14 @@ export async function emitEvent(
   })
 
   // Broadcast to authenticated socket room for this user
+  // Room key uses clerkId (what the socket middleware sets on socket.data.userId)
   const agent = await prisma.agent.findUnique({
-    where: { id: agentId },
-    select: { userId: true },
+    where:  { id: agentId },
+    select: { user: { select: { clerkId: true } } },
   })
 
-  if (agent && _io) {
-    _io.to(`user:${agent.userId}`).emit('agent:event', event)
+  if (agent?.user?.clerkId && _io) {
+    _io.to(`user:${agent.user.clerkId}`).emit('agent:event', event)
   }
 }
 

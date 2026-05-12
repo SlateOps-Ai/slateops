@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { createActor } from 'xstate'
 import { useAuth } from '@clerk/nextjs'
 import type { AgentEvent } from '@agentcity/types'
@@ -11,9 +11,6 @@ import type { OfficeScene } from '@/lib/pixi/scene'
 import { agentDeskKey } from '@/lib/pixi/scene'
 import { AgentSpriteGroup } from '@/lib/pixi/agent-sprite'
 import { SpriteFactory } from '@/lib/pixi/sprite-factory'
-
-// Maps agentId → XState actor instance, lives for the component lifetime
-const actorRegistry = new Map<string, ReturnType<typeof createActor>>()
 
 export function useAgentEvents(scene: OfficeScene | null) {
   const { getToken } = useAuth()
@@ -27,6 +24,9 @@ export function useAgentEvents(scene: OfficeScene | null) {
     setCompletedTask,
   } = useAgentsStore()
 
+  // Scoped to this mount — cleared on unmount so re-navigation rebuilds actors+sprites
+  const actorRegistry = useRef<Map<string, ReturnType<typeof createActor>>>(new Map())
+
   useEffect(() => {
     let unsubscribe: (() => void) | null = null
 
@@ -39,7 +39,7 @@ export function useAgentEvents(scene: OfficeScene | null) {
       const factory = new SpriteFactory(scene.app.renderer as any)
 
       agents.forEach((agent, index) => {
-        if (actorRegistry.has(agent.id)) return
+        if (actorRegistry.current.has(agent.id)) return
 
         const deskKey = agentDeskKey(index)
 
@@ -55,12 +55,12 @@ export function useAgentEvents(scene: OfficeScene | null) {
         actor.send({ type: 'INIT', sprite, scene })
         scene.app.ticker.add(() => sprite.tick())
 
-        actorRegistry.set(agent.id, actor)
+        actorRegistry.current.set(agent.id, actor)
         setDirectorActor(agent.id, actor as any)
       })
 
       unsubscribe = onAgentEvent((event: AgentEvent) => {
-        const actor = actorRegistry.get(event.agentId)
+        const actor = actorRegistry.current.get(event.agentId)
         if (!actor) return
 
         const agentObj = agents.find((a) => a.id === event.agentId)
@@ -139,6 +139,10 @@ export function useAgentEvents(scene: OfficeScene | null) {
     }
 
     bootstrap()
-    return () => { unsubscribe?.() }
+    return () => {
+      unsubscribe?.()
+      actorRegistry.current.forEach((actor) => actor.stop())
+      actorRegistry.current.clear()
+    }
   }, [scene, agents.length])
 }
