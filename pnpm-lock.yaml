@@ -29,9 +29,6 @@ importers:
       '@clerk/fastify':
         specifier: ^1.0.3
         version: 1.0.51(fastify-plugin@4.5.1)(fastify@4.29.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@fal-ai/client':
-        specifier: ^1.2.0
-        version: 1.10.1
       '@fastify/cookie':
         specifier: ^9.3.1
         version: 9.4.0
@@ -50,9 +47,6 @@ importers:
       '@prisma/client':
         specifier: ^5.17.0
         version: 5.22.0(prisma@5.22.0)
-      '@upstash/redis':
-        specifier: ^1.31.3
-        version: 1.38.0
       composio-core:
         specifier: ^0.5.7
         version: 0.5.39(@ai-sdk/openai@3.0.63(zod@3.25.76))(@cloudflare/workers-types@4.20260510.1)(@langchain/core@1.1.45(@opentelemetry/api@1.9.0)(openai@6.37.0(ws@8.18.3)(zod@3.25.76))(ws@8.18.3))(@langchain/openai@1.4.5(@langchain/core@1.1.45(@opentelemetry/api@1.9.0)(openai@6.37.0(ws@8.18.3)(zod@3.25.76))(ws@8.18.3))(ws@8.18.3))(ai@6.0.177(zod@3.25.76))(langchain@1.4.0(@langchain/core@1.1.45(@opentelemetry/api@1.9.0)(openai@6.37.0(ws@8.18.3)(zod@3.25.76))(ws@8.18.3))(@opentelemetry/api@1.9.0)(openai@6.37.0(ws@8.18.3)(zod@3.25.76))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(ws@8.18.3)(zod-to-json-schema@3.25.2(zod@3.25.76)))(openai@6.37.0(ws@8.18.3)(zod@3.25.76))
@@ -490,10 +484,6 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@fal-ai/client@1.10.1':
-    resolution: {integrity: sha512-c3AVeH31OioiI2J1BfW8Cryi1DhUYldnY3X35nv6xLMq3fU2NQOo+eYaR5mL2O8MoHHh+HzXdQuIyanIyeq+ug==}
-    engines: {node: '>=18.0.0'}
-
   '@fastify/ajv-compiler@3.6.0':
     resolution: {integrity: sha512-LwdXQJjmMD+GwLOkP7TVC68qa+pSSogeWWmznRJ/coyTcfe9qA05AHFSe1eZFwK6q+xVRpChnvFUkf1iYaSZsQ==}
 
@@ -695,10 +685,6 @@ packages:
 
   '@langchain/protocol@0.0.15':
     resolution: {integrity: sha512-MllvbpMjqHevUm+v94M422mH7XKN+wGCvJRBVROTWBotEDOATYB4Ktk2UheYP859y9o2LlhtPek5t1T9eyfAbQ==}
-
-  '@msgpack/msgpack@3.1.3':
-    resolution: {integrity: sha512-47XIizs9XZXvuJgoaJUIE2lFoID8ugvc0jzSHP+Ptfk8nTbnR8g788wv48N03Kx0UkAv559HWRQ3yzOgzlRNUA==}
-    engines: {node: '>= 18'}
 
   '@next/env@14.2.35':
     resolution: {integrity: sha512-DuhvCtj4t9Gwrx80dmz2F4t/zKQ4ktN8WrMwOuVzkJfBilwAwGr6v16M5eI8yCuZ63H9TTuEU09Iu2HqkzFPVQ==}
@@ -1265,9 +1251,6 @@ packages:
   '@types/ws@8.18.1':
     resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
-  '@upstash/redis@1.38.0':
-    resolution: {integrity: sha512-wu+dZBptlLy0+MCUEoHmzrY/TnmgDey3+c7EbIGwrLqAvkP8yi5MWZHYGIFtAygmL4Bkz2TdFu+eU0vFPncIcg==}
-
   '@vercel/oidc@3.2.0':
     resolution: {integrity: sha512-UycprH3T6n3jH0k44NHMa7pnFHGu/N05MjojYr+Mc6I7obkoLIJujSWwin1pCvdy/eOxrI/l3uDLQsmcrOb4ug==}
     engines: {node: '>= 20'}
@@ -1643,10 +1626,6 @@ packages:
   events@3.3.0:
     resolution: {integrity: sha512-mQw+2fkQbALzQ7V0MY0IqdnXNOeTtP4r0lN9z7AAawCXgqea7bDii20AYrIBrFd/Hx0M2Ocz6S111CaFkUcb0Q==}
     engines: {node: '>=0.8.x'}
-
-  eventsource-parser@1.1.2:
-    resolution: {integrity: sha512-v0eOBUbiaFojBu2s2NPBfYUoRR9GjcDNvCXVaqEf5vVfpIAh9f8RCo4vXTP8c63QRKCFwoLpMpTdPwwhEKVgzA==}
-    engines: {node: '>=14.18'}
 
   eventsource-parser@3.0.8:
     resolution: {integrity: sha512-70QWGkr4snxr0OXLRWsFLeRBIRPuQOvt4s8QYjmUlmlkyTZkRqS7EDVRZtzU3TiyDbXSzaOeF0XUKy8PchzukQ==}
@@ -2426,9 +2405,6 @@ packages:
   rfdc@1.4.1:
     resolution: {integrity: sha512-q1b3N5QkRUWUl7iyylaaj3kOpIT0N2i9MqIEQXP73GVsN9cw3fdx8X63cEmWhJGi2PPCF23Ijp7ktmd39rawIA==}
 
-  robot3@0.4.1:
-    resolution: {integrity: sha512-hzjy826lrxzx8eRgv80idkf8ua1JAepRc9Efdtj03N3KNJuznQCPlyCJ7gnUmDFwZCLQjxy567mQVKmdv2BsXQ==}
-
   run-async@3.0.0:
     resolution: {integrity: sha512-540WwVDOMxA6dN6We19EcT9sc3hkXPw5mzRNGM3FkdN/vtE9NFvj5lFAPNwUDmJjXidm3v7TC1cTE7t17Ulm1Q==}
     engines: {node: '>=0.12.0'}
@@ -2662,9 +2638,6 @@ packages:
     resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
     engines: {node: '>=14.17'}
     hasBin: true
-
-  uncrypto@0.1.3:
-    resolution: {integrity: sha512-Ql87qFHB3s/De2ClA9e0gsnS6zXG27SkTiSJwjCc9MebbfapQfuPzumMIUMi38ezPZVNFcHI9sUIepeQfw8J8Q==}
 
   undici-types@5.26.5:
     resolution: {integrity: sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==}
@@ -3049,12 +3022,6 @@ snapshots:
   '@esbuild/win32-x64@0.27.7':
     optional: true
 
-  '@fal-ai/client@1.10.1':
-    dependencies:
-      '@msgpack/msgpack': 3.1.3
-      eventsource-parser: 1.1.2
-      robot3: 0.4.1
-
   '@fastify/ajv-compiler@3.6.0':
     dependencies:
       ajv: 8.20.0
@@ -3335,8 +3302,6 @@ snapshots:
       - ws
 
   '@langchain/protocol@0.0.15': {}
-
-  '@msgpack/msgpack@3.1.3': {}
 
   '@next/env@14.2.35': {}
 
@@ -3840,10 +3805,6 @@ snapshots:
     dependencies:
       '@types/node': 20.19.40
 
-  '@upstash/redis@1.38.0':
-    dependencies:
-      uncrypto: 0.1.3
-
   '@vercel/oidc@3.2.0': {}
 
   '@webgpu/types@0.1.69': {}
@@ -4220,8 +4181,6 @@ snapshots:
   eventemitter3@5.0.4: {}
 
   events@3.3.0: {}
-
-  eventsource-parser@1.1.2: {}
 
   eventsource-parser@3.0.8: {}
 
@@ -4955,8 +4914,6 @@ snapshots:
 
   rfdc@1.4.1: {}
 
-  robot3@0.4.1: {}
-
   run-async@3.0.0: {}
 
   run-parallel@1.2.0:
@@ -5217,8 +5174,6 @@ snapshots:
   type-fest@4.41.0: {}
 
   typescript@5.9.3: {}
-
-  uncrypto@0.1.3: {}
 
   undici-types@5.26.5: {}
 
