@@ -80,38 +80,43 @@ async function start() {
   const { emitEvent } = await import('./services/events.service.js')
 
   setInterval(async () => {
-    const expired = await prisma.approvalRequest.findMany({
-      where:   { status: 'PENDING', expiresAt: { lt: new Date() } },
-      include: { task: { include: { agent: true } } },
-    })
+    try {
+      const expired = await prisma.approvalRequest.findMany({
+        where:   { status: 'PENDING', expiresAt: { lt: new Date() } },
+        include: { task: { include: { agent: true } } },
+      })
 
-    for (const req of expired) {
-      await prisma.approvalRequest.update({
-        where: { id: req.id },
-        data:  { status: 'EXPIRED' },
-      })
-      await prisma.task.update({
-        where: { id: req.taskId },
-        data:  { status: 'FAILED' },
-      })
-      await emitEvent(req.agentId, {
-        type:    'TASK_BLOCKED',
-        taskId:  req.taskId,
-        agentId: req.agentId,
-        payload: {
-          thoughtBubble: 'Approval timed out',
-          error: {
-            message:    'Approval request expired',
-            userFacing: 'This task timed out waiting for your approval.',
-            retryable:  true,
+      for (const req of expired) {
+        await prisma.approvalRequest.update({
+          where: { id: req.id },
+          data:  { status: 'EXPIRED' },
+        })
+        await prisma.task.update({
+          where: { id: req.taskId },
+          data:  { status: 'FAILED' },
+        })
+        await emitEvent(req.agentId, {
+          type:    'TASK_BLOCKED',
+          taskId:  req.taskId,
+          agentId: req.agentId,
+          payload: {
+            thoughtBubble: 'Approval timed out',
+            error: {
+              message:    'Approval request expired',
+              userFacing: 'This task timed out waiting for your approval.',
+              retryable:  true,
+            },
           },
-        },
-      })
+        })
+      }
+    } catch (err) {
+      console.error('Approval expiry job error:', err)
     }
   }, 2 * 60 * 1000)
 
   // ── Scheduled runs job (every minute) ──────────────────────────
   setInterval(async () => {
+    try {
     const now = new Date()
     const due = await prisma.scheduledRun.findMany({
       where:   { isActive: true, nextRunAt: { lte: now } },
@@ -182,14 +187,21 @@ async function start() {
         console.error('Schedule runner error for', schedule.id, err)
       }
     }
+    } catch (err) {
+      console.error('Scheduled runs job error:', err)
+    }
   }, 60 * 1000)
 
   // ── Weekly Office Brief (Sunday 20:00, checked hourly) ──────────
   setInterval(async () => {
-    const now = new Date()
-    if (now.getDay() === 0 && now.getHours() === 20) {
-      const { generateAndSendBriefs } = await import('./agents/brief.js')
-      generateAndSendBriefs().catch(console.error)
+    try {
+      const now = new Date()
+      if (now.getDay() === 0 && now.getHours() === 20) {
+        const { generateAndSendBriefs } = await import('./agents/brief.js')
+        generateAndSendBriefs().catch(console.error)
+      }
+    } catch (err) {
+      console.error('Weekly brief job error:', err)
     }
   }, 60 * 60 * 1000)
 

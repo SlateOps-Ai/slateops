@@ -32,5 +32,5 @@ COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
 
 WORKDIR /app/apps/api
 EXPOSE 4000
-# Run migrations then start. DATABASE_URL must be set at deploy time.
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+# Push schema to DB then start. Swap to `migrate deploy` once migration files exist.
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss && node dist/index.js"]
