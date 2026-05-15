@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Lightbulb, AlertTriangle, TrendingUp, Megaphone } from 'lucide-react'
+import { X, Lightbulb, AlertTriangle, TrendingUp, Megaphone, RotateCcw } from 'lucide-react'
 import { useAgentsStore } from '@/stores/agents.store'
 import type { AgentNotification } from '@/stores/agents.store'
 import { cn } from '@/lib/utils'
@@ -61,6 +61,12 @@ export function AgentAvatarDock() {
   const markAgentArrived       = useAgentsStore((s) => s.markAgentArrived)
   const agentNotifications     = useAgentsStore((s) => s.agentNotifications)
   const dismissAgentNotification = useAgentsStore((s) => s.dismissAgentNotification)
+  const agentPositions         = useAgentsStore((s) => s.agentPositions)
+  const setAgentPosition       = useAgentsStore((s) => s.setAgentPosition)
+  const resetAllAgentPositions = useAgentsStore((s) => s.resetAllAgentPositions)
+
+  // Per-render ref to distinguish drag-then-release from click. Indexed by agentId.
+  const dragStateRef = useRef<Record<string, { startX: number; startY: number; baseX: number; baseY: number; dragged: boolean }>>({})
 
   // Auto-dismiss notifications after NOTIF_AUTO_DISMISS_MS. One timer per (agentId, notif.id).
   const scheduledRef = useRef<Set<string>>(new Set())
@@ -82,22 +88,31 @@ export function AgentAvatarDock() {
   const vw = typeof window !== 'undefined' ? window.innerWidth  : CANVAS_W
   const vh = typeof window !== 'undefined' ? window.innerHeight : CANVAS_H
 
+  const hasMovedAgents = Object.keys(agentPositions).length > 0
+
   return (
     <>
+      {/* Reset office layout — appears once any agent has been dragged */}
+      <AnimatePresence>
+        {hasMovedAgents && (
+          <motion.button
+            key="reset-layout"
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.18 }}
+            onClick={resetAllAgentPositions}
+            className="fixed top-4 left-[200px] z-30 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-white/10 bg-panel-bg/95 backdrop-blur-sm text-panel-muted hover:text-white hover:bg-white/[0.06] transition-colors text-[11px] font-medium shadow-lg"
+            title="Snap all agents back to their default desk positions"
+          >
+            <RotateCcw size={11} />
+            Reset office layout
+          </motion.button>
+        )}
+      </AnimatePresence>
+
       {agents.map((agent, index) => {
         const slotPos = SLOT_POSITIONS[index % SLOT_POSITIONS.length]
-
-        // Map PIXI coords → screen coords
-        const sx = slotPos.x + (vw / 2 - CAM_CX)
-        const sy = slotPos.y + (vh / 2 - CAM_CY)
-
-        const isSelected = teamChatOpen && activeChatAgentId === agent.id
-        const role = AGENT_ROLE_LABELS[agent.role as keyof typeof AGENT_ROLE_LABELS] ?? agent.role
-
-        function toggle() {
-          setActiveChatAgent(agent.id)
-          setTeamChatOpen(true)
-        }
 
         const arrivalIdx = arrivingAgentIds.indexOf(agent.id)
         const isArriving = arrivalIdx >= 0
@@ -105,12 +120,60 @@ export function AgentAvatarDock() {
           ? { x: DOOR_PIXI.x - slotPos.x, y: DOOR_PIXI.y - slotPos.y }
           : null
 
+        // User drag offset (applied only when not arriving — don't fight the walk-in)
+        const userOffset = isArriving ? { x: 0, y: 0 } : (agentPositions[agent.id] ?? { x: 0, y: 0 })
+
+        // Map PIXI coords → screen coords, plus the user's drag offset
+        const sx = slotPos.x + (vw / 2 - CAM_CX) + userOffset.x
+        const sy = slotPos.y + (vh / 2 - CAM_CY) + userOffset.y
+
+        const isSelected = teamChatOpen && activeChatAgentId === agent.id
+        const role = AGENT_ROLE_LABELS[agent.role as keyof typeof AGENT_ROLE_LABELS] ?? agent.role
+
+        function handleClick() {
+          if (dragStateRef.current[agent.id]?.dragged) {
+            // Click suppressed because the user just finished dragging
+            delete dragStateRef.current[agent.id]
+            return
+          }
+          setActiveChatAgent(agent.id)
+          setTeamChatOpen(true)
+        }
+
+        function handleMouseDown(e: React.MouseEvent) {
+          if (e.button !== 0 || isArriving) return
+          const base = agentPositions[agent.id] ?? { x: 0, y: 0 }
+          dragStateRef.current[agent.id] = {
+            startX: e.clientX, startY: e.clientY,
+            baseX:  base.x,    baseY:  base.y,
+            dragged: false,
+          }
+          const onMove = (ev: MouseEvent) => {
+            const s = dragStateRef.current[agent.id]
+            if (!s) return
+            const dx = ev.clientX - s.startX
+            const dy = ev.clientY - s.startY
+            if (!s.dragged && Math.hypot(dx, dy) > 5) s.dragged = true
+            if (s.dragged) setAgentPosition(agent.id, { x: s.baseX + dx, y: s.baseY + dy })
+          }
+          const onUp = () => {
+            window.removeEventListener('mousemove', onMove)
+            window.removeEventListener('mouseup', onUp)
+            // Leave the dragged flag for handleClick to read on the same gesture
+            setTimeout(() => { delete dragStateRef.current[agent.id] }, 0)
+          }
+          window.addEventListener('mousemove', onMove)
+          window.addEventListener('mouseup', onUp)
+        }
+
         return (
           <motion.button
             key={agent.id}
-            onClick={toggle}
+            onClick={handleClick}
+            onMouseDown={handleMouseDown}
             className={cn(
-              'absolute z-20 group -translate-x-1/2 -translate-y-1/2 cursor-pointer',
+              'absolute z-20 group -translate-x-1/2 -translate-y-1/2',
+              isArriving ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing',
             )}
             style={{ left: sx, top: sy }}
             {...(isArriving && doorOffset && {

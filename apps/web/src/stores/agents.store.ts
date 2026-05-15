@@ -51,6 +51,7 @@ interface AgentsState {
   pendingFirstTask:       { agentId: string; taskText: string } | null
   arrivingAgentIds:       string[]
   agentNotifications:     Record<string, AgentNotification | null>
+  agentPositions:         Record<string, { x: number; y: number }>
   pendingDraft:           { content: string; platform: string; suggestedAt?: string } | null
 
   setAgents:               (agents: Agent[]) => void
@@ -76,6 +77,8 @@ interface AgentsState {
   pushAgentNotification:   (agentId: string, notif: AgentNotification) => void
   dismissAgentNotification:(agentId: string) => void
   setPendingDraft:         (draft: { content: string; platform: string; suggestedAt?: string } | null) => void
+  setAgentPosition:        (agentId: string, offset: { x: number; y: number }) => void
+  resetAllAgentPositions:  () => void
 }
 
 export interface AgentNotification {
@@ -103,6 +106,7 @@ export const useAgentsStore = create<AgentsState>((set) => ({
   arrivingAgentIds:       [],
   agentNotifications:     {},
   pendingDraft:           null,
+  agentPositions:         {},
 
   setAgents: (agents) => set({ agents }),
 
@@ -178,4 +182,7 @@ export const useAgentsStore = create<AgentsState>((set) => ({
   pushAgentNotification:    (agentId, notif) => set((s) => ({ agentNotifications: { ...s.agentNotifications, [agentId]: notif } })),
   dismissAgentNotification: (agentId)        => set((s) => ({ agentNotifications: { ...s.agentNotifications, [agentId]: null } })),
   setPendingDraft:          (draft)           => set({ pendingDraft: draft }),
+
+  setAgentPosition:       (agentId, offset) => set((s) => ({ agentPositions: { ...s.agentPositions, [agentId]: offset } })),
+  resetAllAgentPositions: ()                => set({ agentPositions: {} }),
 }))
