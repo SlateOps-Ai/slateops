@@ -219,6 +219,7 @@ model User {
   settings             Json?
   freeRunCredits       Int             @default(10)
   lastQuotaResetAt     DateTime?
+  isAdmin              Boolean         @default(false)
   createdAt            DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 

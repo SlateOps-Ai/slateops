@@ -28,6 +28,7 @@
     "fastify": "^4.28.1",
     "fastify-plugin": "^4.5.1",
     "fastify-socket.io": "^4.0.0",
+    "ioredis": "^5.10.1",
     "pg": "^8.12.0",
     "pino-pretty": "^11.2.1",
     "resend": "^6.12.3",

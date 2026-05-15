@@ -42,14 +42,15 @@ export default fp(async (app) => {
     const resultText = JSON.stringify(task.result ?? '').slice(0, 3000)
 
     try {
-      const msg = await ai.messages.create({
+      const { callAnthropic } = await import('../../lib/llm-usage.js')
+      const msg = await callAnthropic(ai, {
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 512,
         messages: [{
           role: 'user',
           content: `Extract 1–3 concise knowledge insights from this completed AI agent task. For each insight return JSON: {"topic":"…","content":"…","category":"decision|learning|client|process|market","importance":1-5}. Return ONLY a JSON array, no prose.\n\nTask: ${task.title}\nResult: ${resultText}`,
         }],
-      })
+      }, { userId, agentId: task.agentId, endpoint: '/api/brain/extract' })
       const raw = (msg.content[0] as any).text.trim()
       const insights = JSON.parse(raw.replace(/```json|```/g, '').trim())
 
@@ -92,14 +93,15 @@ export default fp(async (app) => {
       .join('\n')
 
     try {
-      const msg = await ai.messages.create({
+      const { callAnthropic } = await import('../../lib/llm-usage.js')
+      const msg = await callAnthropic(ai, {
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 600,
         messages: [{
           role: 'user',
           content: `You are the Company Brain of a business. Answer this question using only the knowledge below. Be concise and direct.\n\nKnowledge:\n${context}\n\nQuestion: ${question}`,
         }],
-      })
+      }, { userId, endpoint: '/api/brain/query' })
 
       // Bump access count on used nodes (top 5)
       await prisma.brainNode.updateMany({

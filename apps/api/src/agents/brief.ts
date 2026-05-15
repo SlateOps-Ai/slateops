@@ -82,7 +82,8 @@ async function generateBriefForUser(
 
     const taskList = tasks.slice(0, 5).map((t: any) => t.title as string).join(', ')
 
-    const rec = await client.messages.create({
+    const { callAnthropic } = await import('../lib/llm-usage.js')
+    const rec = await callAnthropic(client, {
       model:      'claude-haiku-4-5-20251001',
       max_tokens: 80,
       system:     'You write one crisp, specific, actionable recommendation (max 20 words) for an AI agent based on its recent work. No preamble. Start with a verb.',
@@ -90,11 +91,11 @@ async function generateBriefForUser(
         role:    'user',
         content: `Agent: ${agent.name} (${agent.role})\nRecent tasks: ${taskList}\n${memContext}\nWhat should this agent do more of next week?`,
       }],
-    })
+    }, { userId: user.id, agentId: agent.id, endpoint: 'agents/brief' })
 
-    const recommendation = rec.content
-      .filter((b) => b.type === 'text')
-      .map((b) => (b as { text: string }).text)
+    const recommendation = (rec.content as any[])
+      .filter((b: any) => b.type === 'text')
+      .map((b: any) => (b as { text: string }).text)
       .join('')
       .trim()
 

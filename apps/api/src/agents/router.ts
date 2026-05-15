@@ -21,7 +21,8 @@ RouterDecision schema:
 export async function routeCommand(
   rawCommand: string,
   agents: Agent[],
-  byokKey?: string
+  byokKey?: string,
+  userId?: string,
 ): Promise<RouterDecision> {
   const client = getAnthropicClient(byokKey)
 
@@ -30,21 +31,30 @@ export async function routeCommand(
     .map((a) => `- id: ${a.id}, name: ${a.name}, role: ${a.role}, status: ${a.status}`)
     .join('\n')
 
-  const message = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 512,
-    system: ROUTER_SYSTEM,
-    messages: [
-      {
-        role: 'user',
-        content: `Command: "${rawCommand}"\n\nAvailable agents:\n${agentList || 'None available'}`,
-      },
-    ],
-  })
+  const { callAnthropic } = await import('../lib/llm-usage.js')
+  const message = userId
+    ? await callAnthropic(client, {
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 512,
+        system: ROUTER_SYSTEM,
+        messages: [{
+          role: 'user',
+          content: `Command: "${rawCommand}"\n\nAvailable agents:\n${agentList || 'None available'}`,
+        }],
+      }, { userId, endpoint: 'agents/router', byok: !!byokKey })
+    : await client.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 512,
+        system: ROUTER_SYSTEM,
+        messages: [{
+          role: 'user',
+          content: `Command: "${rawCommand}"\n\nAvailable agents:\n${agentList || 'None available'}`,
+        }],
+      })
 
-  const text = message.content
-    .filter((b) => b.type === 'text')
-    .map((b) => (b as { text: string }).text)
+  const text = (message.content as any[])
+    .filter((b: any) => b.type === 'text')
+    .map((b: any) => (b as { text: string }).text)
     .join('')
 
   try {

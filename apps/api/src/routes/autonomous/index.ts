@@ -90,14 +90,15 @@ export default fp(async (app) => {
     ].join('\n')
 
     try {
-      const msg = await ai.messages.create({
+      const { callAnthropic } = await import('../../lib/llm-usage.js')
+      const msg = await callAnthropic(ai, {
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 700,
         messages: [{
           role: 'user',
           content: `You are the Chief of Staff for an AI-powered office. Generate a concise morning brief (3–5 bullet points) covering: yesterday's wins, today's priorities, any risks or blockers, and one strategic recommendation. Be actionable and direct. Format as JSON: {"headline":"…","bullets":[{"type":"win|priority|risk|strategy","text":"…"}],"date":"${new Date().toDateString()}"}\n\nOffice status:\n${context}`,
         }],
-      })
+      }, { userId, endpoint: '/api/autonomous/morning-brief' })
 
       const raw = (msg.content[0] as any).text.trim()
       const brief = JSON.parse(raw.replace(/```json|```/g, '').trim())
@@ -136,14 +137,15 @@ export default fp(async (app) => {
     const objList = objectives.map((o) => `${o.title}: reach ${o.targetValue} ${o.metric} by ${o.dueAt.toDateString()}`).join('; ')
 
     try {
-      const msg = await ai.messages.create({
+      const { callAnthropic } = await import('../../lib/llm-usage.js')
+      const msg = await callAnthropic(ai, {
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 500,
         messages: [{
           role: 'user',
           content: `You are an autonomous office director. Assign ONE specific task to each agent to progress toward the business objectives. Return JSON array: [{"agentId":"…","agentName":"…","task":"…"}]. Use exactly these agents.\n\nAgents: ${agentList}\nObjectives: ${objList}\n\nAgent IDs: ${agents.map((a) => `${a.name}:${a.id}`).join(', ')}`,
         }],
-      })
+      }, { userId, endpoint: '/api/autonomous/run' })
 
       const raw = (msg.content[0] as any).text.trim()
       const assignments = JSON.parse(raw.replace(/```json|```/g, '').trim())

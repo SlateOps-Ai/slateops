@@ -1,3 +1,4 @@
+import type Anthropic from '@anthropic-ai/sdk'
 import { prisma } from './prisma.js'
 
 // ── Pricing (per million tokens, USD) ─────────────────────────────────────────
@@ -90,6 +91,54 @@ export async function logLlmCall(params: LogParams): Promise<void> {
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('[llm-usage] failed to log call:', (err as Error).message)
+  }
+}
+
+// ── Wrapper: call Anthropic + auto-log usage ──────────────────────────────────
+
+interface CallCtx {
+  userId:    string
+  agentId?:  string | null
+  endpoint:  string
+  byok?:     boolean
+}
+
+/**
+ * Drop-in wrapper around `client.messages.create()` that logs token usage
+ * + cost on success and on error. Use this everywhere instead of calling
+ * `client.messages.create` directly so we keep a complete audit trail.
+ */
+export async function callAnthropic(
+  client: Anthropic,
+  params: any,
+  ctx: CallCtx,
+): Promise<any> {
+  const start = Date.now()
+  try {
+    const response = await client.messages.create(params)
+    await logLlmCall({
+      userId:    ctx.userId,
+      agentId:   ctx.agentId,
+      endpoint:  ctx.endpoint,
+      model:     params.model,
+      usage:     (response.usage ?? null) as AnthropicUsage | null,
+      byok:      ctx.byok,
+      latencyMs: Date.now() - start,
+    })
+    return response
+  } catch (err) {
+    await logLlmCall({
+      userId:       ctx.userId,
+      agentId:      ctx.agentId,
+      endpoint:     ctx.endpoint,
+      model:        params.model,
+      usage:        null,
+      byok:         ctx.byok,
+      latencyMs:    Date.now() - start,
+      status:       'ERROR',
+      errorMessage: (err as Error).message?.slice(0, 500),
+    })
+    throw err
   }
 }
 

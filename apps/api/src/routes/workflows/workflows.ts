@@ -79,7 +79,8 @@ export default async function workflowsRoute(app: FastifyInstance) {
     const client = getAnthropicClient(user?.byokKey ?? undefined)
     const agentList = agents.map((a) => `- id: ${a.id}, name: ${a.name}, role: ${a.role.replace(/_/g, ' ')}`).join('\n')
 
-    const msg = await client.messages.create({
+    const { callAnthropic } = await import('../../lib/llm-usage.js')
+    const msg = await callAnthropic(client, {
       model:      'claude-sonnet-4-6',
       max_tokens: 2048,
       system:     AI_GENERATE_SYSTEM,
@@ -87,9 +88,9 @@ export default async function workflowsRoute(app: FastifyInstance) {
         role:    'user',
         content: `Business process:\n${description}\n\nAvailable agents:\n${agentList}`,
       }],
-    })
+    }, { userId, endpoint: '/api/workflows/ai-generate', byok: !!user?.byokKey })
 
-    const raw = msg.content.filter((b) => b.type === 'text').map((b) => (b as any).text).join('')
+    const raw = (msg.content as any[]).filter((b: any) => b.type === 'text').map((b: any) => (b as any).text).join('')
     const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
 
     try {

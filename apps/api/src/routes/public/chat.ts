@@ -64,7 +64,8 @@ You are embedded on a website. Be concise, friendly, and stay in character. Keep
 
     const client = getAnthropicClient()
 
-    const response = await client.messages.create({
+    const { callAnthropic } = await import('../../lib/llm-usage.js')
+    const response = await callAnthropic(client, {
       model:    'claude-haiku-4-5-20251001',
       max_tokens: 512,
       system,
@@ -72,11 +73,11 @@ You are embedded on a website. Be concise, friendly, and stay in character. Keep
         ...body.history.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
         { role: 'user' as const, content: body.message },
       ],
-    })
+    }, { userId: agent.userId, agentId: agent.id, endpoint: '/api/public/agents/:id/chat' })
 
-    const text = response.content
-      .filter((b) => b.type === 'text')
-      .map((b) => (b as { text: string }).text)
+    const text = (response.content as any[])
+      .filter((b: any) => b.type === 'text')
+      .map((b: any) => (b as { text: string }).text)
       .join('')
 
     return reply.send({ reply: text, agentName: agent.name, avatarUrl: agent.avatarUrl })

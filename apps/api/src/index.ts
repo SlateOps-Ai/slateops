@@ -64,12 +64,26 @@ async function start() {
   })
 
   // ── Rate limiting (must be before routes so it sees authenticated user id) ──
-  // Global default: 120 req/min per user (in-memory; upgrade to Redis later for
-  // multi-instance). Per-user keying happens via the auth plugin populating req.dbUserId.
+  // Global default: 120 req/min per user. Uses Redis (REDIS_URL) when set so
+  // counters are shared across multi-instance deployments; otherwise falls back
+  // to in-memory (fine for single-instance Railway).
+  let redisClient: any = null
+  if (process.env.REDIS_URL) {
+    try {
+      const { Redis } = await import('ioredis')
+      redisClient = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: 1, enableReadyCheck: false })
+      redisClient.on('error', (err: Error) => app.log.warn(`[rate-limit] redis error: ${err.message}`))
+      app.log.info('[rate-limit] Using Redis store')
+    } catch (err) {
+      app.log.warn(`[rate-limit] Redis init failed, falling back to in-memory: ${(err as Error).message}`)
+      redisClient = null
+    }
+  }
   await app.register(rateLimit, {
     global:        true,
     max:           120,
     timeWindow:    '1 minute',
+    redis:         redisClient ?? undefined,
     keyGenerator:  (req: any) => req.dbUserId ?? req.ip,
     errorResponseBuilder: (_req, ctx) => ({
       statusCode: 429,
@@ -125,6 +139,7 @@ async function start() {
   const { default: ceoLayerRoute }            = await import('./routes/ceo-layer/index.js')
   const { default: onboardingComposeRoute }   = await import('./routes/onboarding/compose.js')
   const { default: onboardingInstallRoute }   = await import('./routes/onboarding/install.js')
+  const { default: adminRoute }               = await import('./routes/admin/index.js')
 
   // Webhook registered without fp() so its content-type parser override stays scoped
   await app.register(clerkWebhookRoute as any)
@@ -164,6 +179,7 @@ async function start() {
   await app.register(fp(ceoLayerRoute as any))
   await app.register(fp(onboardingComposeRoute as any))
   await app.register(fp(onboardingInstallRoute as any))
+  await app.register(fp(adminRoute as any))
   // Webhooks registered without fp() — no auth plugin needed, external services POST here
   await app.register(inboundWebhookRoutes as any)
   await app.register(stripeWebhookRoute as any)

@@ -32,7 +32,8 @@ async function buildAgentSuggestions(
   const taskList  = recentTasks.map((t) => `- ${t.rawCommand ?? t.title}`).join('\n')
   const client    = getAnthropicClient(byokKey ?? undefined)
 
-  const res = await client.messages.create({
+  const { callAnthropic } = await import('../../lib/llm-usage.js')
+  const res = await callAnthropic(client, {
     model:      'claude-haiku-4-5-20251001',
     max_tokens: 512,
     system: `You suggest specific, actionable tasks for an AI agent based on its role and what it knows about the user.
@@ -48,9 +49,9 @@ Commands must be ≤15 words. No generic filler.`,
         taskList  ? `Recent tasks handled:\n${taskList}`   : 'No completed tasks yet — suggest good starting points.',
       ].filter(Boolean).join('\n\n'),
     }],
-  })
+  }, { userId, agentId, endpoint: '/api/agents/:id/suggestions', byok: !!byokKey })
 
-  const text = res.content.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join('')
+  const text = (res.content as any[]).filter((b: any) => b.type === 'text').map((b: any) => (b as { text: string }).text).join('')
   const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
   return JSON.parse(stripped)
 }
@@ -118,7 +119,8 @@ export default async function suggestionsRoute(app: FastifyInstance) {
       const taskList    = recentTasks.map((t) => `- ${t.title}`).join('\n')
 
       try {
-        const res = await client.messages.create({
+        const { callAnthropic } = await import('../../lib/llm-usage.js')
+        const res = await callAnthropic(client, {
           model:      'claude-haiku-4-5-20251001',
           max_tokens: 256,
           system: `You suggest 2 specific, actionable tasks for an AI agent based on what it knows about the user.
@@ -133,10 +135,10 @@ Commands should be concrete (≤12 words). No generic suggestions.`,
               taskList ? `Recent tasks:\n${taskList}` : 'No completed tasks yet.',
             ].filter(Boolean).join('\n\n'),
           }],
-        })
+        }, { userId, agentId: agent.id, endpoint: '/api/agents/suggestions/proactive' })
 
-        const text = res.content.filter((b) => b.type === 'text')
-          .map((b) => (b as { text: string }).text).join('')
+        const text = (res.content as any[]).filter((b: any) => b.type === 'text')
+          .map((b: any) => (b as { text: string }).text).join('')
 
         const parsed: Array<{ command: string; rationale: string }> = JSON.parse(text)
         for (const s of parsed.slice(0, 2)) {

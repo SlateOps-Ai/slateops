@@ -82,12 +82,14 @@ async function extractAndSaveMemories(
   rawCommand: string,
   stepOutputs: Array<{ step: string; output: string }>,
   byokKey?: string,
+  userId?: string,
 ): Promise<void> {
   try {
     const { getAnthropicClient } = await import('../lib/claude.js')
+    const { callAnthropic }      = await import('../lib/llm-usage.js')
     const client = getAnthropicClient(byokKey)
 
-    const response = await client.messages.create({
+    const callParams = {
       model:      'claude-haiku-4-5-20251001',
       max_tokens: 400,
       system: `Extract 0-4 memorable facts about the user's working context, preferences, or style
@@ -96,14 +98,17 @@ Return ONLY JSON: {"memories":[{"key":"snake_case_name","value":"concise fact","
 Keys ≤40 chars, values ≤200 chars. confidence 0–1 (how certain you are this fact is useful and accurate).
 Return {"memories":[]} if nothing meaningful.`,
       messages: [{
-        role:    'user',
+        role:    'user' as const,
         content: `Task: ${rawCommand}\n\nOutputs:\n${stepOutputs.map((s) => s.output).join('\n\n').slice(0, 2000)}`,
       }],
-    })
+    }
+    const response = userId
+      ? await callAnthropic(client, callParams, { userId, agentId, endpoint: 'agents/graph:extractMemories', byok: !!byokKey })
+      : await client.messages.create(callParams)
 
-    const text = response.content
-      .filter((b) => b.type === 'text')
-      .map((b) => (b as { text: string }).text)
+    const text = (response.content as any[])
+      .filter((b: any) => b.type === 'text')
+      .map((b: any) => (b as { text: string }).text)
       .join('')
 
     const { memories } = JSON.parse(text)
@@ -194,9 +199,10 @@ async function planStepsNode(state: AgentGraphState): Promise<Partial<AgentGraph
 
   try {
     const { getAnthropicClient } = await import('../lib/claude.js')
+    const { callAnthropic }      = await import('../lib/llm-usage.js')
     const client = getAnthropicClient(state.byokKey)
 
-    const response = await client.messages.create({
+    const response = await callAnthropic(client, {
       model:      'claude-haiku-4-5-20251001',
       max_tokens: 512,
       system:     `You are a task planner. Break the command into 2-4 concrete sequential steps.
@@ -204,11 +210,11 @@ Return ONLY a JSON array: [{"name":"string","description":"string","instruction"
 "instruction" is the exact prompt that will be sent to an LLM to complete that step.
 Keep steps specific and actionable.`,
       messages: [{ role: 'user', content: state.rawCommand }],
-    })
+    }, { userId: state.agent.userId, agentId: state.agentId, endpoint: 'agents/graph:planSteps', byok: !!state.byokKey })
 
-    const text = response.content
-      .filter((b) => b.type === 'text')
-      .map((b) => (b as { text: string }).text)
+    const text = (response.content as any[])
+      .filter((b: any) => b.type === 'text')
+      .map((b: any) => (b as { text: string }).text)
       .join('')
 
     let steps: TaskStep[] = []
@@ -261,7 +267,8 @@ async function compileResultNode(state: AgentGraphState): Promise<Partial<AgentG
         ? `The user requested a ${detectedFormat.toUpperCase()} file. Produce clean, well-structured plain text or markdown content — it will be converted to ${detectedFormat.toUpperCase()} automatically.`
         : ''
 
-      const response = await client.messages.create({
+      const { callAnthropic } = await import('../lib/llm-usage.js')
+      const response = await callAnthropic(client, {
         model:      'claude-haiku-4-5-20251001',
         max_tokens: 2048,
         system: `You compile step outputs into a single polished result. Choose the most appropriate type:
@@ -277,11 +284,11 @@ ${formatInstruction ? formatInstruction + '\n\n' : ''}Return ONLY valid JSON: {"
           role:    'user',
           content: `Original command: ${state.rawCommand}\n\nStep outputs:\n${stepsText}`,
         }],
-      })
+      }, { userId: state.agent.userId, agentId: state.agentId, endpoint: 'agents/graph:compileResult', byok: !!state.byokKey })
 
-      const text = response.content
-        .filter((b) => b.type === 'text')
-        .map((b) => (b as { text: string }).text)
+      const text = (response.content as any[])
+        .filter((b: any) => b.type === 'text')
+        .map((b: any) => (b as { text: string }).text)
         .join('')
 
       const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
@@ -391,7 +398,7 @@ ${formatInstruction ? formatInstruction + '\n\n' : ''}Return ONLY valid JSON: {"
 
   // Run memory extraction, email, XP award, and brain ingest in parallel — all non-blocking
   Promise.all([
-    extractAndSaveMemories(state.agentId, state.taskId, state.rawCommand, state.stepOutputs, state.byokKey),
+    extractAndSaveMemories(state.agentId, state.taskId, state.rawCommand, state.stepOutputs, state.byokKey, state.agent.userId),
     sendTaskCompleteEmail(state.agentId, state.agent.userId, result, state.taskTitle),
     import('../services/gamification.service.js')
       .then(({ awardXp }) => awardXp(state.agent.userId, complexityXpReason, state.taskId))
