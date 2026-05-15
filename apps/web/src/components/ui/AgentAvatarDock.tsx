@@ -54,13 +54,14 @@ const CAM_CY = 420
 export function AgentAvatarDock() {
   const agents                 = useAgentsStore((s) => s.agents)
   const activeChatAgentId      = useAgentsStore((s) => s.activeChatAgentId)
-  const teamChatOpen           = useAgentsStore((s) => s.teamChatOpen)
   const setActiveChatAgent     = useAgentsStore((s) => s.setActiveChatAgent)
-  const setTeamChatOpen        = useAgentsStore((s) => s.setTeamChatOpen)
   const arrivingAgentIds       = useAgentsStore((s) => s.arrivingAgentIds)
   const markAgentArrived       = useAgentsStore((s) => s.markAgentArrived)
   const agentNotifications     = useAgentsStore((s) => s.agentNotifications)
   const dismissAgentNotification = useAgentsStore((s) => s.dismissAgentNotification)
+  const threads                = useAgentsStore((s) => s.threads)
+  const openScheduler          = useAgentsStore((s) => s.openScheduler)
+  const setPendingDraft        = useAgentsStore((s) => s.setPendingDraft)
 
   // Auto-dismiss notifications after NOTIF_AUTO_DISMISS_MS. One timer per (agentId, notif.id).
   const scheduledRef = useRef<Set<string>>(new Set())
@@ -91,12 +92,20 @@ export function AgentAvatarDock() {
         const sx = slotPos.x + (vw / 2 - CAM_CX)
         const sy = slotPos.y + (vh / 2 - CAM_CY)
 
-        const isSelected = teamChatOpen && activeChatAgentId === agent.id
+        const isSelected = activeChatAgentId === agent.id
         const role = AGENT_ROLE_LABELS[agent.role as keyof typeof AGENT_ROLE_LABELS] ?? agent.role
 
         function toggle() {
           setActiveChatAgent(agent.id)
-          setTeamChatOpen(true)
+        }
+
+        // Last assistant message for the selected agent — shown as a speech bubble above the avatar
+        const messages = threads[agent.id] ?? []
+        let lastAssistant: typeof messages[number] | null = null
+        if (isSelected) {
+          for (let i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].role === 'assistant') { lastAssistant = messages[i]; break }
+          }
         }
 
         const arrivalIdx = arrivingAgentIds.indexOf(agent.id)
@@ -125,39 +134,86 @@ export function AgentAvatarDock() {
               onAnimationComplete: () => markAgentArrived(agent.id),
             })}
           >
-            {/* Speech bubble for this agent's most recent notification */}
-            <AnimatePresence>
-              {agentNotifications[agent.id] && (
-                <motion.div
-                  key={agentNotifications[agent.id]!.id}
-                  initial={{ opacity: 0, y: 6, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 6, scale: 0.96 }}
-                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
-                  className="absolute z-30 left-1/2 -translate-x-1/2 bottom-full mb-3 w-[230px] rounded-xl border border-white/10 bg-panel-bg shadow-2xl backdrop-blur-sm cursor-default"
-                >
-                  <div className="flex items-start gap-2 p-2.5">
-                    <span className="mt-0.5 shrink-0">{NOTIF_ICON[agentNotifications[agent.id]!.type]}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[8px] text-panel-muted">{agent.name} · just now</p>
-                      <p className="text-white text-[10px] font-medium mt-0.5 leading-snug">
-                        {agentNotifications[agent.id]!.headline}
-                      </p>
+            {/* Bubbles column above the avatar — chat reply (closest to avatar) + notification (above) */}
+            <div className="absolute z-30 left-1/2 -translate-x-1/2 bottom-full mb-3 flex flex-col items-center gap-2 pointer-events-none">
+              <AnimatePresence>
+                {agentNotifications[agent.id] && (
+                  <motion.div
+                    key={agentNotifications[agent.id]!.id}
+                    initial={{ opacity: 0, y: 6, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.96 }}
+                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                    className="pointer-events-auto w-[230px] rounded-xl border border-white/10 bg-panel-bg shadow-2xl backdrop-blur-sm cursor-default"
+                  >
+                    <div className="flex items-start gap-2 p-2.5">
+                      <span className="mt-0.5 shrink-0">{NOTIF_ICON[agentNotifications[agent.id]!.type]}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[8px] text-panel-muted">{agent.name} · just now</p>
+                        <p className="text-white text-[10px] font-medium mt-0.5 leading-snug">
+                          {agentNotifications[agent.id]!.headline}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => dismissAgentNotification(agent.id)}
+                        className="text-panel-muted hover:text-white shrink-0 transition-colors"
+                      >
+                        <X size={10} />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => dismissAgentNotification(agent.id)}
-                      className="text-panel-muted hover:text-white shrink-0 transition-colors"
-                    >
-                      <X size={10} />
-                    </button>
-                  </div>
-                  {/* Tail pointing down to the avatar */}
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-panel-bg" />
-                </motion.div>
-              )}
-            </AnimatePresence>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Chat reply bubble for selected agent */}
+              <AnimatePresence>
+                {isSelected && lastAssistant && (
+                  <motion.div
+                    key={messages.length + '-chat'}
+                    initial={{ opacity: 0, y: 6, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.96 }}
+                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                    className="pointer-events-auto w-[280px] rounded-xl border border-panel-accent/30 bg-panel-bg shadow-2xl backdrop-blur-sm cursor-default relative"
+                  >
+                    <div className="px-3 py-2.5">
+                      <p className="text-[8px] text-panel-accent uppercase tracking-widest font-semibold mb-1">{agent.name} says</p>
+                      {lastAssistant.draftPost ? (
+                        <div className="space-y-2">
+                          <p className="text-white/85 text-[11px] leading-relaxed whitespace-pre-wrap">{lastAssistant.draftPost.content}</p>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setPendingDraft({
+                                content:     lastAssistant!.draftPost!.content,
+                                platform:    lastAssistant!.draftPost!.platform,
+                                suggestedAt: lastAssistant!.draftPost!.suggestedAt,
+                              })
+                              openScheduler(agent.id)
+                            }}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-panel-accent text-white text-[10px] font-semibold hover:bg-panel-accent/85 transition-colors"
+                          >
+                            Schedule on {lastAssistant.draftPost.platform}
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-white text-[11px] leading-snug whitespace-pre-wrap">
+                          {lastAssistant.content.length > 280
+                            ? lastAssistant.content.slice(0, 280) + '…'
+                            : lastAssistant.content}
+                        </p>
+                      )}
+                    </div>
+                    {/* Tail pointing down to the avatar */}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-panel-bg" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
             {/* Continuous idle bounce — inner motion layer doesn't fight the outer arrival translate */}
             <motion.div
