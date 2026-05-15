@@ -610,8 +610,12 @@ export function TeamChatPanel() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          style={{ transform: `translate(calc(-50% + ${dragOffset.x}px), ${dragOffset.y}px)` }}
-          className="fixed top-[60px] bottom-4 left-1/2 z-50 w-[820px] max-w-[calc(100vw-2rem)] flex flex-col rounded-2xl border border-white/10 bg-panel-bg shadow-2xl overflow-hidden"
+          style={{
+            transform: `translate(calc(-50% + ${dragOffset.x}px), ${dragOffset.y}px)`,
+            width:     '820px',
+            height:    'calc(100vh - 80px)',
+          }}
+          className="fixed top-[60px] left-1/2 z-50 min-w-[480px] min-h-[400px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-80px)] flex flex-col rounded-2xl border border-white/10 bg-panel-bg shadow-2xl resize overflow-hidden"
         >
           {/* ── Panel-level drag strip + window controls ─────────────────── */}
           <div
