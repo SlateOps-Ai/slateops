@@ -2,11 +2,13 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Copy, Check, Pencil, ThumbsUp, ThumbsDown, Calendar } from 'lucide-react'
+import { Copy, Check, Pencil, ThumbsUp, ThumbsDown, Calendar, ChevronDown, ChevronUp } from 'lucide-react'
 import { useAuthFetch } from '@/hooks/useAuthFetch'
 import { useAgentsStore } from '@/stores/agents.store'
 import type { ChatMessage } from '@/stores/agents.store'
 import { cn } from '@/lib/utils'
+
+const TRUNC_CHARS = 280
 
 interface Props {
   message:        ChatMessage
@@ -23,7 +25,13 @@ export function MessageBubble({ message, messageIndex, agentId, agentName }: Pro
   const openScheduler      = useAgentsStore((s) => s.openScheduler)
   const updateThreadMessage = useAgentsStore((s) => s.updateThreadMessage)
 
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied]     = useState(false)
+  const [expanded, setExpanded] = useState(false)
+
+  const needsTrunc = !message.draftPost && message.content.length > TRUNC_CHARS
+  const displayContent = needsTrunc && !expanded
+    ? message.content.slice(0, TRUNC_CHARS).trimEnd() + '…'
+    : message.content
 
   function copy() {
     navigator.clipboard.writeText(message.content).then(() => {
@@ -72,10 +80,10 @@ export function MessageBubble({ message, messageIndex, agentId, agentName }: Pro
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
       className={cn(
-        'pointer-events-auto group relative rounded-xl border shadow-2xl backdrop-blur-sm cursor-default',
+        'pointer-events-auto group relative rounded-xl border shadow-2xl backdrop-blur-sm cursor-default transition-[width] duration-200',
         isUser
-          ? 'w-[220px] border-panel-accent/30 bg-panel-accent/[0.10]'
-          : 'w-[280px] border-white/10 bg-panel-bg',
+          ? (expanded ? 'w-[320px]' : 'w-[220px]') + ' border-panel-accent/30 bg-panel-accent/[0.10]'
+          : (expanded ? 'w-[360px]' : 'w-[280px]') + ' border-white/10 bg-panel-bg',
       )}
     >
       <div className="px-3 py-2">
@@ -98,12 +106,26 @@ export function MessageBubble({ message, messageIndex, agentId, agentName }: Pro
             </button>
           </div>
         ) : (
-          <p className={cn(
-            'text-[11px] leading-snug whitespace-pre-wrap',
-            isUser ? 'text-white/90 text-right' : 'text-white',
-          )}>
-            {message.content.length > 320 ? message.content.slice(0, 320) + '…' : message.content}
-          </p>
+          <>
+            <div className={cn(
+              'text-[11px] leading-snug whitespace-pre-wrap break-words',
+              isUser ? 'text-white/90 text-right' : 'text-white',
+              expanded && 'max-h-[44vh] overflow-y-auto pr-1 scrollbar-none',
+            )}>
+              {displayContent}
+            </div>
+            {needsTrunc && (
+              <button
+                onClick={() => setExpanded((v) => !v)}
+                className={cn(
+                  'mt-1.5 flex items-center gap-1 text-[10px] font-medium text-panel-accent hover:underline',
+                  isUser ? 'ml-auto' : '',
+                )}
+              >
+                {expanded ? <><ChevronUp size={10} /> Collapse</> : <><ChevronDown size={10} /> Read full message</>}
+              </button>
+            )}
+          </>
         )}
       </div>
 

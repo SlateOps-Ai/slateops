@@ -154,11 +154,13 @@ export function OfficeChatInput() {
         if (res.status === 402) {
           setError(data?.detail ?? 'No credits remaining.')
           setSending(false)
+          setTimeout(() => inputRef.current?.focus(), 30)
           return
         }
         if (!res.ok) {
           setError(data?.error ?? 'Could not route command.')
           setSending(false)
+          setTimeout(() => inputRef.current?.focus(), 30)
           return
         }
         if (data.task) upsertTask({ id: data.task.id, agentId: data.task.agentId, title: data.task.title, status: 'IN_PROGRESS' })
@@ -167,6 +169,7 @@ export function OfficeChatInput() {
         setError('Could not reach the server.')
       }
       setSending(false)
+      setTimeout(() => inputRef.current?.focus(), 30)
       return
     }
 
@@ -198,6 +201,7 @@ export function OfficeChatInput() {
       appendThreadMessage(agentId, { role: 'assistant', content: 'Something went wrong. Please try again.' })
     }
     setSending(false)
+    setTimeout(() => inputRef.current?.focus(), 30)
   }
 
   function handleKey(e: React.KeyboardEvent) {

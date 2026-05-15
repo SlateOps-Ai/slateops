@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Lightbulb, AlertTriangle, TrendingUp, Megaphone } from 'lucide-react'
 import { useAgentsStore } from '@/stores/agents.store'
 import type { AgentNotification } from '@/stores/agents.store'
 import { MessageBubble } from '@/components/ui/MessageBubble'
+import { ThreadHistoryModal } from '@/components/ui/ThreadHistoryModal'
 import { cn } from '@/lib/utils'
 import { AGENT_ROLE_LABELS } from '@agentcity/types'
 import type { AgentStatus } from '@agentcity/types'
@@ -63,6 +64,7 @@ export function AgentAvatarDock() {
   const agentNotifications     = useAgentsStore((s) => s.agentNotifications)
   const dismissAgentNotification = useAgentsStore((s) => s.dismissAgentNotification)
   const threads                = useAgentsStore((s) => s.threads)
+  const [historyAgentId, setHistoryAgentId] = useState<string | null>(null)
 
   // Auto-dismiss notifications after NOTIF_AUTO_DISMISS_MS. One timer per (agentId, notif.id).
   const scheduledRef = useRef<Set<string>>(new Set())
@@ -167,7 +169,13 @@ export function AgentAvatarDock() {
 
               {/* Chat thread for selected agent — last N messages stacked, newest closest to avatar */}
               {isSelected && earlierCount > 0 && (
-                <p className="text-[9px] text-panel-muted/60 italic pointer-events-none">↑ {earlierCount} earlier</p>
+                <button
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); setHistoryAgentId(agent.id) }}
+                  className="pointer-events-auto text-[9px] text-panel-accent hover:text-white hover:underline italic px-2 py-0.5 rounded-md bg-panel-bg/70 border border-white/8"
+                >
+                  ↑ {earlierCount} earlier · view full thread
+                </button>
               )}
               <AnimatePresence>
                 {visibleMessages.map((msg, i) => (
@@ -233,6 +241,19 @@ export function AgentAvatarDock() {
           </motion.button>
         )
       })}
+
+      {historyAgentId && (() => {
+        const a = agents.find((x) => x.id === historyAgentId)
+        if (!a) return null
+        return (
+          <ThreadHistoryModal
+            agentId={a.id}
+            agentName={a.name}
+            avatarUrl={a.avatarUrl}
+            onClose={() => setHistoryAgentId(null)}
+          />
+        )
+      })()}
     </>
   )
 }
