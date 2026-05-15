@@ -243,43 +243,43 @@ export function OfficeCanvas() {
               {
                 group: 'Build',
                 items: [
-                  { icon: <GitBranch size={12} />, c: 'text-purple-400 bg-purple-400/15 border-purple-400/25', label: 'Build a Workflow', active: workflowOpen, onClick: () => toggle(setWorkflowOpen, workflowOpen) },
+                  { icon: <span className="text-base leading-none">🛠️</span>, c: 'text-purple-400 bg-purple-400/15 border-purple-400/25', label: 'Build a Workflow', active: workflowOpen, onClick: () => toggle(setWorkflowOpen, workflowOpen) },
                 ],
               },
               {
                 group: 'Workspace',
                 items: [
-                  { icon: <Plug size={12} />,         c: 'text-cyan-400 bg-cyan-400/15 border-cyan-400/25',       label: 'MCP Connections',   active: mcpOpen,        onClick: () => toggle(setMcpOpen, mcpOpen) },
-                  { icon: <Zap size={12} />,          c: 'text-yellow-400 bg-yellow-400/15 border-yellow-400/25', label: 'Triggers',          active: triggersOpen,   onClick: () => toggle(setTriggersOpen, triggersOpen) },
-                  { icon: <BookMarked size={12} />,   c: 'text-teal-400 bg-teal-400/15 border-teal-400/25',       label: 'Playbooks',         active: playbooksOpen,  onClick: () => toggle(setPlaybooksOpen, playbooksOpen) },
+                  { icon: <span className="text-base leading-none">🔌</span>, c: 'text-cyan-400 bg-cyan-400/15 border-cyan-400/25',       label: 'MCP Connections',   active: mcpOpen,        onClick: () => toggle(setMcpOpen, mcpOpen) },
+                  { icon: <span className="text-base leading-none">⚡</span>, c: 'text-yellow-400 bg-yellow-400/15 border-yellow-400/25', label: 'Triggers',          active: triggersOpen,   onClick: () => toggle(setTriggersOpen, triggersOpen) },
+                  { icon: <span className="text-base leading-none">📖</span>, c: 'text-teal-400 bg-teal-400/15 border-teal-400/25',       label: 'Playbooks',         active: playbooksOpen,  onClick: () => toggle(setPlaybooksOpen, playbooksOpen) },
                 ],
               },
               {
                 group: 'Agents',
                 items: [
-                  { icon: <Brain size={12} />,   c: 'text-indigo-400 bg-indigo-400/15 border-indigo-400/25', label: 'Agent Memory',  active: memoryOpen, onClick: () => toggle(setMemoryOpen, memoryOpen) },
-                  { icon: <Network size={12} />, c: 'text-sky-400 bg-sky-400/15 border-sky-400/25',           label: 'Collaboration', active: collabOpen, onClick: () => toggle(setCollabOpen, collabOpen) },
+                  { icon: <span className="text-base leading-none">🧠</span>, c: 'text-indigo-400 bg-indigo-400/15 border-indigo-400/25', label: 'Agent Memory',  active: memoryOpen, onClick: () => toggle(setMemoryOpen, memoryOpen) },
+                  { icon: <span className="text-base leading-none">🤝</span>, c: 'text-sky-400 bg-sky-400/15 border-sky-400/25',           label: 'Collaboration', active: collabOpen, onClick: () => toggle(setCollabOpen, collabOpen) },
                 ],
               },
               {
                 group: 'Team',
                 items: [
-                  { icon: <Users size={12} />,         c: 'text-pink-400 bg-pink-400/15 border-pink-400/25', label: 'Teams',     active: teamOpen,    onClick: () => toggle(setTeamOpen, teamOpen) },
+                  { icon: <span className="text-base leading-none">👥</span>, c: 'text-pink-400 bg-pink-400/15 border-pink-400/25', label: 'Teams',     active: teamOpen,    onClick: () => toggle(setTeamOpen, teamOpen) },
                 ],
               },
               {
                 group: 'Intelligence',
                 items: [
-                  { icon: <Brain size={12} />,        c: 'text-violet-400 bg-violet-400/15 border-violet-400/25',   label: 'Company Brain',  active: brainOpen,         onClick: () => toggle(setBrainOpen, brainOpen) },
-                  { icon: <Zap size={12} />,           c: 'text-emerald-400 bg-emerald-400/15 border-emerald-400/25', label: 'Autonomous',     active: autonomousOpen,    onClick: () => toggle(setAutonomousOpen, autonomousOpen) },
-                  { icon: <TrendingUp size={12} />,   c: 'text-amber-400 bg-amber-400/15 border-amber-400/25',      label: 'Evolution',      active: evolutionOpen,     onClick: () => toggle(setEvolutionOpen, evolutionOpen) },
+                  { icon: <span className="text-base leading-none">🏢</span>, c: 'text-violet-400 bg-violet-400/15 border-violet-400/25',   label: 'Company Brain',  active: brainOpen,         onClick: () => toggle(setBrainOpen, brainOpen) },
+                  { icon: <span className="text-base leading-none">🤖</span>, c: 'text-emerald-400 bg-emerald-400/15 border-emerald-400/25', label: 'Autonomous',     active: autonomousOpen,    onClick: () => toggle(setAutonomousOpen, autonomousOpen) },
+                  { icon: <span className="text-base leading-none">📈</span>, c: 'text-amber-400 bg-amber-400/15 border-amber-400/25',      label: 'Evolution',      active: evolutionOpen,     onClick: () => toggle(setEvolutionOpen, evolutionOpen) },
                 ],
               },
               {
                 group: 'System',
                 items: [
-                  { icon: <Smartphone size={12} />, c: 'text-rose-400 bg-rose-400/15 border-rose-400/25', label: 'Notifications',  active: pushOpen,     onClick: () => toggle(setPushOpen, pushOpen) },
-                  { icon: <Settings size={12} />,   c: 'text-gray-400 bg-gray-400/15 border-gray-400/25', label: 'Settings',       active: settingsOpen, onClick: () => toggle(setSettingsOpen, settingsOpen) },
+                  { icon: <span className="text-base leading-none">🔔</span>, c: 'text-rose-400 bg-rose-400/15 border-rose-400/25', label: 'Notifications',  active: pushOpen,     onClick: () => toggle(setPushOpen, pushOpen) },
+                  { icon: <span className="text-base leading-none">⚙️</span>, c: 'text-gray-400 bg-gray-400/15 border-gray-400/25', label: 'Settings',       active: settingsOpen, onClick: () => toggle(setSettingsOpen, settingsOpen) },
                 ],
               },
             ]
@@ -324,7 +324,7 @@ export function OfficeCanvas() {
                           )}
                         >
                           {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-panel-accent" />}
-                          <div className={cn('w-[22px] h-[22px] rounded-lg border flex items-center justify-center shrink-0 transition-all', active ? c : 'bg-white/[0.03] border-white/[0.08] group-hover:bg-white/[0.06]')}>
+                          <div className={cn('w-[26px] h-[26px] rounded-lg border flex items-center justify-center shrink-0 transition-all', active ? c : 'bg-white/[0.03] border-white/[0.08] group-hover:bg-white/[0.06]')}>
                             <span className={cn('transition-all', iconColor, active ? 'opacity-100' : 'opacity-50 group-hover:opacity-90')}>
                               {icon}
                             </span>
