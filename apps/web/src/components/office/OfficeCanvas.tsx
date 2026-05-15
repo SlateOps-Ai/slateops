@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Settings, GitBranch, Plug, Zap, Brain, Users, Building2, Sparkles, BookOpen, ChevronDown, BookMarked, Smartphone, Network, TrendingUp, Shield } from 'lucide-react'
+import { Building2, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
 import { OfficeScene } from '@/lib/pixi/scene'
@@ -10,7 +10,6 @@ import { useAgentEvents } from '@/hooks/useAgentEvents'
 import { useAuthFetch } from '@/hooks/useAuthFetch'
 import { AgentAvatarDock } from '@/components/ui/AgentAvatarDock'
 import { ApprovalToast } from '@/components/ui/ApprovalToast'
-import { CommandLibrary } from '@/components/ui/CommandLibrary'
 import { TaskResultPanel } from '@/components/ui/TaskResultPanel'
 import { SettingsPanel } from '@/components/ui/SettingsPanel'
 import { OnboardingTakeover } from '@/components/ui/OnboardingTakeover'
@@ -62,10 +61,7 @@ export function OfficeCanvas() {
   const [brainOpen,        setBrainOpen]        = useState(false)
   const [autonomousOpen,   setAutonomousOpen]   = useState(false)
   const [showOnboarding,        setShowOnboarding]        = useState(false)
-  const [commandLibraryOpen,    setCommandLibraryOpen]    = useState(false)
-  const commandsAnchorRef = useRef<HTMLDivElement>(null)
   const [showDailyBriefPrompt,  setShowDailyBriefPrompt] = useState(false)
-  const [pendingCount, setPendingCount] = useState(0)
   const [showOnboardingTakeover, setShowOnboardingTakeover] = useState(false)
   const setAgents       = useAgentsStore((s) => s.setAgents)
   const setTasks        = useAgentsStore((s) => s.setTasks)
@@ -89,18 +85,6 @@ export function OfficeCanvas() {
       router.replace('/office')
     }
   }, [searchParams, router])
-
-  // Poll pending approval count for badge
-  useEffect(() => {
-    const base = process.env.NEXT_PUBLIC_API_URL
-    const poll = () => authFetch(`${base}/api/ceo-layer/summary`)
-      .then((r) => r.json())
-      .then((d) => setPendingCount(d.pendingCount ?? 0))
-      .catch(() => {})
-    poll()
-    const id = setInterval(poll, 30_000)
-    return () => clearInterval(id)
-  }, [authFetch])
 
   // Check onboarding status once agents + scene are ready
   useEffect(() => {
@@ -185,12 +169,12 @@ export function OfficeCanvas() {
 
       {/* ── Ambient glow — atmosphere only, pointer-events-none ── */}
       <div
-        className="absolute left-[184px] right-0 top-0 bottom-0 z-10 pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse 50% 40% at 30% 55%, rgba(77,127,255,0.06) 0%, transparent 65%)' }}
+        className="absolute inset-0 z-10 pointer-events-none"
+        style={{ background: 'radial-gradient(ellipse 50% 40% at 50% 55%, rgba(77,127,255,0.06) 0%, transparent 65%)' }}
       />
 
-      {/* ── Centred branding — offset right to account for sidebar ── */}
-      <div className="absolute left-[184px] right-0 top-0 bottom-0 flex flex-col items-center justify-start pt-4 z-10 pointer-events-none select-none gap-4">
+      {/* ── Centred branding ── */}
+      <div className="absolute inset-0 flex flex-col items-center justify-start pt-4 z-10 pointer-events-none select-none gap-4">
         {/* Icon + wordmark */}
         <div className="flex items-center gap-4">
           <div className="relative shrink-0">
@@ -236,137 +220,6 @@ export function OfficeCanvas() {
           <WelcomeBackPanel />
           <TaskResultPanel />
           <ProactiveBriefings />
-
-          {/* ── Left sidebar ── */}
-          {(() => {
-            const closeAll = () => {
-              setWorkflowOpen(false); setMcpOpen(false); setTriggersOpen(false); setGamificationOpen(false)
-              setBillingOpen(false); setMemoryOpen(false); setTeamOpen(false); setSettingsOpen(false)
-              setPlaybooksOpen(false); setMarketplaceOpen(false)
-              setCollabOpen(false); setPushOpen(false)
-              setEvolutionOpen(false); setBrainOpen(false); setAutonomousOpen(false)
-            }
-            const toggle = (setter: React.Dispatch<React.SetStateAction<boolean>>, current: boolean) => {
-              closeAll(); if (!current) setter(true)
-            }
-            const NAV_GROUPS = [
-              {
-                group: 'Build',
-                items: [
-                  { icon: <span className="text-base leading-none">🛠️</span>, c: 'text-purple-400 bg-purple-400/15 border-purple-400/25', label: 'Build a Workflow', active: workflowOpen, onClick: () => toggle(setWorkflowOpen, workflowOpen) },
-                ],
-              },
-              {
-                group: 'Workspace',
-                items: [
-                  { icon: <span className="text-base leading-none">🔌</span>, c: 'text-cyan-400 bg-cyan-400/15 border-cyan-400/25',       label: 'MCP Connections',   active: mcpOpen,        onClick: () => toggle(setMcpOpen, mcpOpen) },
-                  { icon: <span className="text-base leading-none">⚡</span>, c: 'text-yellow-400 bg-yellow-400/15 border-yellow-400/25', label: 'Triggers',          active: triggersOpen,   onClick: () => toggle(setTriggersOpen, triggersOpen) },
-                  { icon: <span className="text-base leading-none">📖</span>, c: 'text-teal-400 bg-teal-400/15 border-teal-400/25',       label: 'Playbooks',         active: playbooksOpen,  onClick: () => toggle(setPlaybooksOpen, playbooksOpen) },
-                ],
-              },
-              {
-                group: 'Agents',
-                items: [
-                  { icon: <span className="text-base leading-none">🧠</span>, c: 'text-indigo-400 bg-indigo-400/15 border-indigo-400/25', label: 'Agent Memory',  active: memoryOpen, onClick: () => toggle(setMemoryOpen, memoryOpen) },
-                  { icon: <span className="text-base leading-none">🤝</span>, c: 'text-sky-400 bg-sky-400/15 border-sky-400/25',           label: 'Collaboration', active: collabOpen, onClick: () => toggle(setCollabOpen, collabOpen) },
-                ],
-              },
-              {
-                group: 'Team',
-                items: [
-                  { icon: <span className="text-base leading-none">👥</span>, c: 'text-pink-400 bg-pink-400/15 border-pink-400/25', label: 'Teams',     active: teamOpen,    onClick: () => toggle(setTeamOpen, teamOpen) },
-                ],
-              },
-              {
-                group: 'Intelligence',
-                items: [
-                  { icon: <span className="text-base leading-none">🏢</span>, c: 'text-violet-400 bg-violet-400/15 border-violet-400/25',   label: 'Company Brain',  active: brainOpen,         onClick: () => toggle(setBrainOpen, brainOpen) },
-                  { icon: <span className="text-base leading-none">🤖</span>, c: 'text-emerald-400 bg-emerald-400/15 border-emerald-400/25', label: 'Autonomous',     active: autonomousOpen,    onClick: () => toggle(setAutonomousOpen, autonomousOpen) },
-                  { icon: <span className="text-base leading-none">📈</span>, c: 'text-amber-400 bg-amber-400/15 border-amber-400/25',      label: 'Evolution',      active: evolutionOpen,     onClick: () => toggle(setEvolutionOpen, evolutionOpen) },
-                ],
-              },
-              {
-                group: 'System',
-                items: [
-                  { icon: <span className="text-base leading-none">🔔</span>, c: 'text-rose-400 bg-rose-400/15 border-rose-400/25', label: 'Notifications',  active: pushOpen,     onClick: () => toggle(setPushOpen, pushOpen) },
-                  { icon: <span className="text-base leading-none">⚙️</span>, c: 'text-gray-400 bg-gray-400/15 border-gray-400/25', label: 'Settings',       active: settingsOpen, onClick: () => toggle(setSettingsOpen, settingsOpen) },
-                ],
-              },
-            ]
-            return (
-              <div className="absolute left-3 top-3 bottom-3 z-40 w-[184px] flex flex-col bg-panel-bg/96 backdrop-blur-md border border-white/[0.10] rounded-2xl shadow-2xl overflow-hidden antialiased">
-                {/* Wordmark */}
-                <div className="flex items-center gap-2.5 px-4 py-3 border-b border-white/[0.06] shrink-0">
-                  <div className="w-6 h-6 rounded-md bg-panel-accent/20 border border-panel-accent/30 flex items-center justify-center shrink-0">
-                    <Building2 size={11} className="text-panel-accent" />
-                  </div>
-                  <span className="text-[11px] font-bold text-white tracking-tight">SlateOps</span>
-                </div>
-
-                {/* Control Layer CTA */}
-                <button
-                  onClick={() => router.push('/ceo-layer')}
-                  className="mx-3 mt-2 mb-1 flex items-center gap-2 px-2.5 py-2 rounded-lg bg-amber-400/10 border border-amber-400/20 hover:bg-amber-400/15 transition-colors"
-                >
-                  <Shield size={11} className="text-amber-400 shrink-0" />
-                  <span className="text-[13px] font-semibold text-amber-300 flex-1 text-left">CEO Control Center</span>
-                  {pendingCount > 0 && (
-                    <span className="w-4 h-4 rounded-full bg-amber-400 text-[#12172b] text-[9px] font-bold flex items-center justify-center shrink-0">
-                      {pendingCount > 9 ? '9+' : pendingCount}
-                    </span>
-                  )}
-                </button>
-
-                {/* Nav */}
-                <div className="flex-1 overflow-y-auto scrollbar-none py-2">
-                  {NAV_GROUPS.map(({ group, items }) => (
-                    <div key={group} className="mb-1">
-                      <p className="px-4 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-[0.15em] text-white/40">{group}</p>
-                      {items.map(({ icon, c, label, active, onClick }) => {
-                        const iconColor = c.split(' ')[0] // e.g. 'text-blue-400'
-                        return (
-                        <button
-                          key={label}
-                          onClick={onClick}
-                          className={cn(
-                            'w-full flex items-center gap-2.5 px-3 py-1.5 transition-all group relative',
-                            active ? 'bg-white/[0.05]' : 'hover:bg-white/[0.03]',
-                          )}
-                        >
-                          {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-panel-accent" />}
-                          <div className={cn('w-[26px] h-[26px] rounded-lg border flex items-center justify-center shrink-0 transition-all', active ? c : 'bg-white/[0.03] border-white/[0.08] group-hover:bg-white/[0.06]')}>
-                            <span className={cn('transition-all', iconColor, active ? 'opacity-100' : 'opacity-50 group-hover:opacity-90')}>
-                              {icon}
-                            </span>
-                          </div>
-                          <span className={cn('text-[13px] font-medium truncate transition-colors', active ? 'text-white' : 'text-white/70 group-hover:text-white')}>
-                            {label}
-                          </span>
-                        </button>
-                        )
-                      })}
-                      {group === 'Agents' && (
-                        <div ref={commandsAnchorRef}>
-                          <button
-                            onClick={() => setCommandLibraryOpen((v) => !v)}
-                            className={cn(
-                              'w-full flex items-center gap-2.5 px-3 py-1.5 transition-all',
-                              commandLibraryOpen ? 'bg-white/[0.06] text-panel-accent' : 'text-white/35 hover:text-white/65 hover:bg-white/[0.04]',
-                            )}
-                          >
-                            <BookOpen size={11} className="shrink-0" />
-                            <span className="text-[13px] font-medium flex-1 text-left">Commands</span>
-                            <ChevronDown size={10} className={cn('transition-transform shrink-0', commandLibraryOpen && 'rotate-180')} />
-                          </button>
-                          <CommandLibrary open={commandLibraryOpen} onOpenChange={setCommandLibraryOpen} anchorRef={commandsAnchorRef} />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )
-          })()}
 
           <AchievementToast />
 
