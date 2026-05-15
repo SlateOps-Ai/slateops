@@ -50,6 +50,30 @@ async function start() {
     process.exit(1)
   }
 
+  // Soft reminders — log a warning if known-good operational config is missing.
+  // Non-blocking; the API still boots. Each env var is set once you've completed
+  // the corresponding manual configuration step.
+  if (!process.env.ANTHROPIC_BUDGET_CAP_CONFIRMED) {
+    console.warn(`
+┌────────────────────────────────────────────────────────────────────────┐
+│  ⚠  Anthropic budget cap not confirmed.                                 │
+│                                                                          │
+│  Set a hard spend limit at:                                              │
+│    https://console.anthropic.com/settings/spend-limits                  │
+│                                                                          │
+│  Recommended: $50/day or (monthly_burn / 30) × 1.5.                     │
+│  This is the final backstop if rate-limit / quota / monitoring code     │
+│  is bypassed or fails. Five-minute config, catastrophic-cost insurance. │
+│                                                                          │
+│  Once configured, set ANTHROPIC_BUDGET_CAP_CONFIRMED=true to silence    │
+│  this warning.                                                          │
+└────────────────────────────────────────────────────────────────────────┘
+`)
+  }
+  if (!process.env.ADMIN_ALERT_EMAIL) {
+    console.warn('[reminder] ADMIN_ALERT_EMAIL not set — spend-anomaly emails will be logged only, not sent. Set this env var to receive alerts via Resend.')
+  }
+
   // ── Core plugins ────────────────────────────────────────────────
   const allowedOrigins = (process.env.WEB_URL ?? 'http://localhost:3000')
     .split(',').map((s) => s.trim()).filter(Boolean)
@@ -402,13 +426,53 @@ async function start() {
     }
   }, 60 * 60 * 1000)
 
-  // ── Spend anomaly check (hourly) — log a warning if any user's spend today is 5x their 7-day avg ──
+  // ── Spend anomaly check (hourly) — log + email an admin if any user's spend
+  //    today is ≥5× their 7-day average. De-duplicated to ≤1 email per user per 24h.
   setInterval(async () => {
     try {
       const { checkSpendAnomalies } = await import('./lib/llm-usage.js')
       const anomalies = await checkSpendAnomalies()
+      if (anomalies.length === 0) return
+
+      const adminEmail = process.env.ADMIN_ALERT_EMAIL
+      const webUrl     = process.env.WEB_URL ?? 'https://slateops.tech'
+      const oneDayAgo  = new Date(Date.now() - 24 * 60 * 60 * 1000)
+
       for (const a of anomalies) {
-        app.log.warn(`[spend-anomaly] user=${a.userId} today=$${a.todayUsd.toFixed(3)} avg=$${a.avgUsd.toFixed(3)} ratio=${(a.todayUsd / a.avgUsd).toFixed(1)}x`)
+        const ratio = a.todayUsd / a.avgUsd
+        app.log.warn(`[spend-anomaly] user=${a.userId} today=$${a.todayUsd.toFixed(3)} avg=$${a.avgUsd.toFixed(3)} ratio=${ratio.toFixed(1)}x`)
+
+        // De-dupe: skip if we already alerted on this user within the last 24h
+        const recent = await prisma.anomalyAlertLog.findFirst({
+          where:   { userId: a.userId, sentAt: { gte: oneDayAgo } },
+          select:  { id: true },
+        })
+        if (recent) continue
+
+        const user = await prisma.user.findUnique({
+          where:  { id: a.userId },
+          select: { email: true, name: true, plan: true },
+        })
+        if (!user) continue
+
+        // Record the alert first so a Resend failure can't cause spam-loops on retry
+        await prisma.anomalyAlertLog.create({
+          data: { userId: a.userId, todayUsd: a.todayUsd, avgUsd: a.avgUsd, ratio },
+        }).catch(() => {})
+
+        if (adminEmail) {
+          const { sendAnomalyAlert } = await import('./services/email.service.js')
+          await sendAnomalyAlert({
+            toEmail:   adminEmail,
+            userEmail: user.email,
+            userName:  user.name ?? user.email,
+            plan:      user.plan,
+            todayUsd:  a.todayUsd,
+            avgUsd:    a.avgUsd,
+            ratio,
+            adminUrl:  `${webUrl}/admin`,
+          }).catch((err: Error) => app.log.error(`[spend-anomaly] email send failed: ${err.message}`))
+        }
       }
     } catch (err) {
       console.error('Spend anomaly check error:', err)

@@ -64,6 +64,14 @@ You are embedded on a website. Be concise, friendly, and stay in character. Keep
 
     const client = getAnthropicClient()
 
+    // Moderation pre-flight — this endpoint is anonymous (public widget),
+    // so untrusted callers can submit prompts. Reject anything flagged.
+    const { moderatePrompt } = await import('../../lib/moderation.js')
+    const mod = await moderatePrompt(body.message, { userId: agent.userId, endpoint: '/api/public/agents/:id/chat' })
+    if (!mod.safe) {
+      return reply.code(400).send({ error: 'Your message was flagged by our content policy. Please rephrase and try again.' })
+    }
+
     const { callAnthropic } = await import('../../lib/llm-usage.js')
     const response = await callAnthropic(client, {
       model:    'claude-haiku-4-5-20251001',

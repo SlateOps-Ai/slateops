@@ -245,6 +245,18 @@ model User {
   @@index([email])
 }
 
+model AnomalyAlertLog {
+  id        String   @id @default(uuid())
+  userId    String
+  todayUsd  Float
+  avgUsd    Float
+  ratio     Float
+  sentAt    DateTime @default(now())
+
+  @@index([userId, sentAt])
+  @@index([sentAt])
+}
+
 model LlmCallLog {
   id                String   @id @default(uuid())
   userId            String

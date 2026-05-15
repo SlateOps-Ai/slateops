@@ -368,3 +368,62 @@ function renderBrief(d: BriefData): string {
 </body>
 </html>`
 }
+
+// ── Anomaly alert ─────────────────────────────────────────────────────────────
+
+export interface AnomalyAlertData {
+  toEmail:   string
+  userEmail: string
+  userName:  string
+  plan:      string
+  todayUsd:  number
+  avgUsd:    number
+  ratio:     number
+  adminUrl:  string
+}
+
+export async function sendAnomalyAlert(data: AnomalyAlertData): Promise<void> {
+  const resend = getResend()
+  await resend.emails.send({
+    from:    'SlateOps Cost Monitor <alerts@slateops.tech>',
+    to:      data.toEmail,
+    subject: `[SlateOps] Spend anomaly: ${data.userEmail} at ${data.ratio.toFixed(1)}× today`,
+    html: `<!DOCTYPE html>
+<html><body style="margin:0;padding:0;background:#0d111f;font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px">
+<table width="520" cellpadding="0" cellspacing="0" style="background:#12172b;border-radius:16px;border:1px solid #4a1f1f;overflow:hidden">
+<tr><td style="padding:24px 28px;border-bottom:1px solid #4a1f1f">
+  <p style="margin:0 0 4px;color:#ff6b4d;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase">⚠️ Cost anomaly</p>
+  <p style="margin:0;color:#ffffff;font-size:18px;font-weight:700">${data.userName} <span style="color:#8892b0;font-weight:400">· ${data.userEmail}</span></p>
+</td></tr>
+<tr><td style="padding:24px 28px">
+  <table cellpadding="0" cellspacing="0" width="100%"><tr>
+    <td style="vertical-align:top;padding-right:16px">
+      <p style="margin:0;color:#8892b0;font-size:10px;text-transform:uppercase;letter-spacing:0.1em">Today</p>
+      <p style="margin:4px 0 0;color:#ff6b4d;font-size:26px;font-weight:700">$${data.todayUsd.toFixed(3)}</p>
+    </td>
+    <td style="vertical-align:top;padding-right:16px">
+      <p style="margin:0;color:#8892b0;font-size:10px;text-transform:uppercase;letter-spacing:0.1em">7-day avg</p>
+      <p style="margin:4px 0 0;color:#ffffff;font-size:26px;font-weight:700">$${data.avgUsd.toFixed(3)}</p>
+    </td>
+    <td style="vertical-align:top">
+      <p style="margin:0;color:#8892b0;font-size:10px;text-transform:uppercase;letter-spacing:0.1em">Multiple</p>
+      <p style="margin:4px 0 0;color:#ff6b4d;font-size:26px;font-weight:700">${data.ratio.toFixed(1)}×</p>
+    </td>
+  </tr></table>
+  <p style="margin:24px 0 0;color:#8892b0;font-size:13px;line-height:1.6">
+    Spend today is ≥5× this user's 7-day average. Possible causes: legitimate burst, runaway loop in their integration, or compromised credentials.
+  </p>
+  <p style="margin:16px 0 0;color:#8892b0;font-size:12px">Plan: <span style="color:#ffffff">${data.plan}</span></p>
+  <a href="${data.adminUrl}" style="display:inline-block;margin-top:20px;padding:10px 16px;background:#4d7fff;color:#ffffff;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600">
+    Open admin dashboard →
+  </a>
+</td></tr>
+<tr><td style="padding:16px 28px;border-top:1px solid #1e2540;background:#0d111f">
+  <p style="margin:0;color:#8892b0;font-size:10px">SlateOps cost monitor · de-duplicated to ≤1 alert per user per 24h</p>
+</td></tr>
+</table>
+</td></tr></table>
+</body></html>`,
+  })
+}
