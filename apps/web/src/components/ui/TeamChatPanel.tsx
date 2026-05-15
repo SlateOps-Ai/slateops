@@ -13,6 +13,7 @@ import { useAgentsStore } from '@/stores/agents.store'
 import { useAuthFetch } from '@/hooks/useAuthFetch'
 import { cn } from '@/lib/utils'
 import { AgentActionsHeader } from '@/components/ui/AgentActionsHeader'
+import { SlateText } from '@/components/ui/SlateText'
 import { AGENT_ROLE_LABELS } from '@agentcity/types'
 import type { AgentStatus } from '@agentcity/types'
 
@@ -478,13 +479,22 @@ function AgentChatArea({
           </div>
         )}
 
-        {messages.map((m, i) => (
+        {(() => {
+          // Last assistant message index — only that one gets the typewriter
+          // effect so older replies don't re-animate on every panel mount.
+          let lastAssistantIdx = -1
+          for (let k = messages.length - 1; k >= 0; k--) {
+            if (messages[k].role === 'assistant') { lastAssistantIdx = k; break }
+          }
+          return messages.map((m, i) => (
           <div key={i} className={cn('group flex gap-3 items-end', m.role === 'user' ? 'justify-end' : 'justify-start')}>
             {m.role === 'assistant' && <img src={agent.avatarUrl} alt={agent.name} className="w-7 h-7 rounded-full object-cover shrink-0 mb-0.5" />}
             <div className={cn('flex flex-col gap-1', m.role === 'user' ? 'items-end' : 'items-start')}>
               <div className={cn('max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words',
                 m.role === 'user' ? 'bg-panel-accent/20 text-white rounded-br-sm' : 'bg-white/5 border border-white/10 text-white rounded-bl-sm')}>
-                {m.content}
+                {m.role === 'assistant' && i === lastAssistantIdx
+                  ? <SlateText text={m.content} maxDurationMs={2200} />
+                  : m.content}
               </div>
 
               {/* Inline draft-post card with one-click schedule */}
@@ -526,7 +536,8 @@ function AgentChatArea({
               </div>
             </div>
           </div>
-        ))}
+        ))
+        })()}
 
         {loading && (
           <div className="flex justify-start gap-3">
