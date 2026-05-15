@@ -37,14 +37,15 @@ const STATUS_LABEL: Record<AgentStatus, string> = {
 }
 
 // Clustered slot positions — agents arranged closer together so they read as a team,
-// not as isolated workers at the far edges of the office.
+// not as isolated workers at the far edges of the office. Horizontal spread is
+// widened to accommodate the 72px avatars (was 48px) without crowding.
 const SLOT_POSITIONS: Array<{ x: number; y: number }> = [
-  { x: 480, y: 420 }, // back-far-left
-  { x: 800, y: 420 }, // back-far-right
-  { x: 580, y: 420 }, // back-mid-left
-  { x: 700, y: 420 }, // back-mid-right
-  { x: 540, y: 540 }, // front-left
-  { x: 740, y: 540 }, // front-right
+  { x: 400, y: 420 }, // back-far-left
+  { x: 880, y: 420 }, // back-far-right
+  { x: 550, y: 420 }, // back-mid-left
+  { x: 730, y: 420 }, // back-mid-right
+  { x: 490, y: 560 }, // front-left
+  { x: 790, y: 560 }, // front-right
 ]
 
 const CANVAS_W = 1280
@@ -332,7 +333,7 @@ export function AgentAvatarDock() {
             >
             {/* Avatar ring */}
             <div className={cn(
-              'relative w-12 h-12 rounded-full border-2 transition-all duration-200 shadow-lg',
+              'relative w-[72px] h-[72px] rounded-full border-2 transition-all duration-200 shadow-lg',
               isSelected
                 ? 'border-panel-accent shadow-panel-accent/30'
                 : 'border-white/20 group-hover:border-white/50',
@@ -345,7 +346,7 @@ export function AgentAvatarDock() {
               />
               {/* Status dot */}
               <span className={cn(
-                'absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-panel-bg',
+                'absolute -bottom-1 -right-1 w-[21px] h-[21px] rounded-full border-2 border-panel-bg',
                 STATUS_DOT[agent.status],
               )} />
             </div>
