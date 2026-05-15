@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Settings, GitBranch, Plug, Zap, Brain, Users, Building2, Sparkles, BookOpen, ChevronDown, BookMarked, Smartphone, Network, TrendingUp, Shield } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -40,8 +40,9 @@ import { PostOnboardingChecklist } from '@/components/ui/PostOnboardingChecklist
 import { useAgentsStore } from '@/stores/agents.store'
 
 export function OfficeCanvas() {
-  const router     = useRouter()
-  const canvasRef  = useRef<HTMLCanvasElement>(null)
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+  const canvasRef    = useRef<HTMLCanvasElement>(null)
   const sceneRef   = useRef<OfficeScene | null>(null)
   const [sceneReady, setSceneReady]     = useState(false)
   const [firstRunLock, setFirstRunLock] = useState(false)
@@ -79,6 +80,15 @@ export function OfficeCanvas() {
   useEffect(() => {
     if (firstRunLock && agentsCount > 0) setFirstRunLock(false)
   }, [agentsCount, firstRunLock])
+
+  // Open the upgrade panel when arriving via /billing → /office?billing=1.
+  // Strip the param so a refresh doesn't keep re-opening the panel.
+  useEffect(() => {
+    if (searchParams?.get('billing') === '1') {
+      setBillingOpen(true)
+      router.replace('/office')
+    }
+  }, [searchParams, router])
 
   // Poll pending approval count for badge
   useEffect(() => {
