@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, Mic, X, Calendar, Loader2, Sparkles } from 'lucide-react'
+import { Send, Mic, X, Calendar, Loader2, Sparkles, RotateCw } from 'lucide-react'
 import { useAgentsStore } from '@/stores/agents.store'
 import type { ChatMessage } from '@/stores/agents.store'
 import { useAuthFetch } from '@/hooks/useAuthFetch'
@@ -11,11 +11,14 @@ import { cn } from '@/lib/utils'
 import { AGENT_ROLE_LABELS } from '@agentcity/types'
 
 const MARKETING_ROLES = new Set(['CONTENT_WRITER', 'MARKETING_STRATEGIST', 'SALES_PROSPECTOR'])
+const THINKING_STEPS = ['Routing', 'Analysing', 'Delegating', 'Orchestrating', 'Dispatching']
 
 const SpeechRecognitionAPI =
   typeof window !== 'undefined'
     ? (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition
     : null
+
+interface PromptSuggestion { command: string; rationale: string }
 
 export function OfficeChatInput() {
   const authFetch = useAuthFetch()
@@ -29,12 +32,24 @@ export function OfficeChatInput() {
   const pendingFirstTask    = useAgentsStore((s) => s.pendingFirstTask)
   const setPendingFirstTask = useAgentsStore((s) => s.setPendingFirstTask)
   const openScheduler       = useAgentsStore((s) => s.openScheduler)
+  const threads             = useAgentsStore((s) => s.threads)
+  const inputDraftText      = useAgentsStore((s) => s.inputDraftText)
+  const setInputDraftText   = useAgentsStore((s) => s.setInputDraftText)
 
   const [input, setInput]       = useState('')
   const [sending, setSending]   = useState(false)
   const [listening, setListening] = useState(false)
   const [pulseSend, setPulseSend] = useState(false)
   const [error, setError]       = useState<string | null>(null)
+
+  // CEO thinking-step animation
+  const [visibleSteps, setVisibleSteps] = useState<number[]>([])
+  const [activeStep,   setActiveStep]   = useState(0)
+
+  // Per-agent prompt suggestions
+  const [prompts,        setPrompts]        = useState<PromptSuggestion[]>([])
+  const [promptsLoading, setPromptsLoading] = useState(false)
+  const [promptsSpinning, setPromptsSpinning] = useState(false)
 
   const inputRef     = useRef<HTMLTextAreaElement>(null)
   const recognizerRef = useRef<any>(null)
@@ -68,6 +83,43 @@ export function OfficeChatInput() {
     setPulseSend(true)
     setPendingFirstTask(null)
   }, [pendingFirstTask, activeChatAgentId, setPendingFirstTask])
+
+  // Pre-fill from edit-message (MessageBubble pencil)
+  useEffect(() => {
+    if (!inputDraftText) return
+    setInput(inputDraftText)
+    setInputDraftText(null)
+    setTimeout(() => inputRef.current?.focus(), 50)
+  }, [inputDraftText, setInputDraftText])
+
+  // Fetch prompt suggestions for the active agent (used when their thread is empty)
+  const loadPrompts = useCallback(async (manual = false) => {
+    if (!activeChatAgentId) { setPrompts([]); return }
+    if (manual) setPromptsSpinning(true)
+    setPromptsLoading(true)
+    try {
+      const res  = await authFetch(`${API}/api/agents/${activeChatAgentId}/suggestions?count=5`)
+      const data = await res.json()
+      if (Array.isArray(data.suggestions)) setPrompts(data.suggestions)
+    } catch {
+      setPrompts([])
+    } finally {
+      setPromptsLoading(false)
+      if (manual) setTimeout(() => setPromptsSpinning(false), 600)
+    }
+  }, [activeChatAgentId, API, authFetch])
+
+  useEffect(() => { setPrompts([]); if (activeChatAgentId) loadPrompts() }, [activeChatAgentId, loadPrompts])
+
+  // CEO thinking-step animation — staggered fade-in while sending in broadcast mode
+  useEffect(() => {
+    if (!sending || !isCeoMode) { setVisibleSteps([]); setActiveStep(0); return }
+    setVisibleSteps([0]); setActiveStep(0)
+    const timers = THINKING_STEPS.slice(1).map((_, i) =>
+      setTimeout(() => { setVisibleSteps((p) => [...p, i + 1]); setActiveStep(i + 1) }, (i + 1) * 900)
+    )
+    return () => timers.forEach(clearTimeout)
+  }, [sending, isCeoMode])
 
   function toggleVoice() {
     if (!SpeechRecognitionAPI) return
@@ -125,8 +177,8 @@ export function OfficeChatInput() {
     setInput('')
 
     try {
-      const threads = useAgentsStore.getState().threads
-      const history = (threads[agentId] ?? []).slice(-10)
+      const allThreads = useAgentsStore.getState().threads
+      const history = (allThreads[agentId] ?? []).slice(-10)
       const res = await authFetch(`${API}/api/agents/${agentId}/chat`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -137,6 +189,8 @@ export function OfficeChatInput() {
         role:      'assistant',
         content:   data.reply ?? 'No response.',
         draftPost: data.draftPost ?? null,
+        taskId:    data.taskId ?? null,
+        rating:    null,
       }
       appendThreadMessage(agentId, reply)
       if (data.taskId) setLastTaskId(agentId, data.taskId)
@@ -200,6 +254,90 @@ export function OfficeChatInput() {
           <span className="text-[10px] text-panel-muted">Routes to the best agent automatically. Click an agent to message them directly.</span>
         </div>
       )}
+
+      {/* CEO thinking-step ladder (broadcast mode, while routing) */}
+      <AnimatePresence>
+        {isCeoMode && visibleSteps.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.2 }}
+            className="flex flex-col items-start gap-1.5 mb-2"
+          >
+            {visibleSteps.map((idx) => {
+              const active = idx === activeStep
+              return (
+                <motion.div
+                  key={idx}
+                  initial={{ opacity: 0, y: 6, scale: 0.96 }}
+                  animate={{ opacity: active ? 1 : 0.4, y: 0, scale: 1 }}
+                  transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl rounded-bl-sm bg-panel-bg/90 border border-white/10 backdrop-blur-sm shadow-lg"
+                >
+                  <span className={cn('text-[11px] font-medium', active ? 'text-white' : 'text-white/35')}>
+                    {THINKING_STEPS[idx]}
+                  </span>
+                  {active ? (
+                    <span className="flex items-end gap-[2px] h-3">
+                      {[0,1,2].map((i) => (
+                        <span key={i} className="w-1 h-1 rounded-full bg-panel-accent animate-bounce"
+                          style={{ animationDelay: `${i * 160}ms`, animationDuration: '0.9s' }} />
+                      ))}
+                    </span>
+                  ) : (
+                    <span className="text-white/20 text-[10px] tracking-widest">···</span>
+                  )}
+                </motion.div>
+              )
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Prompt suggestions (agent mode, when their thread is empty) */}
+      <AnimatePresence>
+        {activeAgent && (threads[activeAgent.id]?.length ?? 0) === 0 && !sending && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.2 }}
+            className="mb-2 rounded-xl border border-white/10 bg-panel-bg/85 backdrop-blur-sm p-2 shadow-lg"
+          >
+            <div className="flex items-center justify-between mb-1.5 px-1">
+              <span className="text-[9px] text-panel-muted uppercase tracking-widest">Try one of these</span>
+              <button
+                onClick={() => loadPrompts(true)}
+                className="p-0.5 text-panel-muted/60 hover:text-panel-muted transition-colors"
+                title="Refresh suggestions"
+              >
+                <RotateCw size={10} className={cn('transition-transform duration-500', promptsSpinning && 'animate-spin')} />
+              </button>
+            </div>
+            {promptsLoading && prompts.length === 0 ? (
+              <div className="flex flex-col gap-1.5">
+                {[1, 2, 3].map((i) => <div key={i} className="h-7 rounded-lg bg-white/5 animate-pulse" />)}
+              </div>
+            ) : prompts.length === 0 ? (
+              <p className="text-panel-muted/60 text-[10px] italic px-1 py-1">No suggestions yet.</p>
+            ) : (
+              <div className="flex flex-col gap-1">
+                {prompts.map((p, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { setInput(p.command); setTimeout(() => inputRef.current?.focus(), 50) }}
+                    title={p.rationale}
+                    className="text-left rounded-lg border border-white/8 bg-white/[0.02] hover:bg-white/[0.06] hover:border-panel-accent/30 px-2.5 py-1.5 text-white/80 hover:text-white text-[11px] leading-snug transition-all"
+                  >
+                    {p.command}
+                  </button>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Error toast */}
       <AnimatePresence>

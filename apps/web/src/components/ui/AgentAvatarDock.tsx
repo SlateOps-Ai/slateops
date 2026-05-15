@@ -5,9 +5,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, Lightbulb, AlertTriangle, TrendingUp, Megaphone } from 'lucide-react'
 import { useAgentsStore } from '@/stores/agents.store'
 import type { AgentNotification } from '@/stores/agents.store'
+import { MessageBubble } from '@/components/ui/MessageBubble'
 import { cn } from '@/lib/utils'
 import { AGENT_ROLE_LABELS } from '@agentcity/types'
 import type { AgentStatus } from '@agentcity/types'
+
+const VISIBLE_MESSAGES = 3
 
 const DOOR_PIXI = { x: 80, y: 680 }
 
@@ -60,8 +63,6 @@ export function AgentAvatarDock() {
   const agentNotifications     = useAgentsStore((s) => s.agentNotifications)
   const dismissAgentNotification = useAgentsStore((s) => s.dismissAgentNotification)
   const threads                = useAgentsStore((s) => s.threads)
-  const openScheduler          = useAgentsStore((s) => s.openScheduler)
-  const setPendingDraft        = useAgentsStore((s) => s.setPendingDraft)
 
   // Auto-dismiss notifications after NOTIF_AUTO_DISMISS_MS. One timer per (agentId, notif.id).
   const scheduledRef = useRef<Set<string>>(new Set())
@@ -99,14 +100,11 @@ export function AgentAvatarDock() {
           setActiveChatAgent(agent.id)
         }
 
-        // Last assistant message for the selected agent — shown as a speech bubble above the avatar
+        // Last N messages for the selected agent — shown stacked above the avatar
         const messages = threads[agent.id] ?? []
-        let lastAssistant: typeof messages[number] | null = null
-        if (isSelected) {
-          for (let i = messages.length - 1; i >= 0; i--) {
-            if (messages[i].role === 'assistant') { lastAssistant = messages[i]; break }
-          }
-        }
+        const visibleStart = Math.max(0, messages.length - VISIBLE_MESSAGES)
+        const visibleMessages = isSelected ? messages.slice(visibleStart) : []
+        const earlierCount = isSelected ? visibleStart : 0
 
         const arrivalIdx = arrivingAgentIds.indexOf(agent.id)
         const isArriving = arrivalIdx >= 0
@@ -167,51 +165,20 @@ export function AgentAvatarDock() {
                 )}
               </AnimatePresence>
 
-              {/* Chat reply bubble for selected agent */}
+              {/* Chat thread for selected agent — last N messages stacked, newest closest to avatar */}
+              {isSelected && earlierCount > 0 && (
+                <p className="text-[9px] text-panel-muted/60 italic pointer-events-none">↑ {earlierCount} earlier</p>
+              )}
               <AnimatePresence>
-                {isSelected && lastAssistant && (
-                  <motion.div
-                    key={messages.length + '-chat'}
-                    initial={{ opacity: 0, y: 6, scale: 0.96 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 6, scale: 0.96 }}
-                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => e.stopPropagation()}
-                    className="pointer-events-auto w-[280px] rounded-xl border border-panel-accent/30 bg-panel-bg shadow-2xl backdrop-blur-sm cursor-default relative"
-                  >
-                    <div className="px-3 py-2.5">
-                      <p className="text-[8px] text-panel-accent uppercase tracking-widest font-semibold mb-1">{agent.name} says</p>
-                      {lastAssistant.draftPost ? (
-                        <div className="space-y-2">
-                          <p className="text-white/85 text-[11px] leading-relaxed whitespace-pre-wrap">{lastAssistant.draftPost.content}</p>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setPendingDraft({
-                                content:     lastAssistant!.draftPost!.content,
-                                platform:    lastAssistant!.draftPost!.platform,
-                                suggestedAt: lastAssistant!.draftPost!.suggestedAt,
-                              })
-                              openScheduler(agent.id)
-                            }}
-                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-panel-accent text-white text-[10px] font-semibold hover:bg-panel-accent/85 transition-colors"
-                          >
-                            Schedule on {lastAssistant.draftPost.platform}
-                          </button>
-                        </div>
-                      ) : (
-                        <p className="text-white text-[11px] leading-snug whitespace-pre-wrap">
-                          {lastAssistant.content.length > 280
-                            ? lastAssistant.content.slice(0, 280) + '…'
-                            : lastAssistant.content}
-                        </p>
-                      )}
-                    </div>
-                    {/* Tail pointing down to the avatar */}
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-panel-bg" />
-                  </motion.div>
-                )}
+                {visibleMessages.map((msg, i) => (
+                  <MessageBubble
+                    key={visibleStart + i}
+                    message={msg}
+                    messageIndex={visibleStart + i}
+                    agentId={agent.id}
+                    agentName={agent.name}
+                  />
+                ))}
               </AnimatePresence>
             </div>
 
