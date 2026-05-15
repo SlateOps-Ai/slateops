@@ -1,6 +1,7 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import cookie from '@fastify/cookie'
+import rateLimit from '@fastify/rate-limit'
 import fp from 'fastify-plugin'
 import { ZodError } from 'zod'
 
@@ -60,6 +61,22 @@ async function start() {
 
   await app.register(cookie, {
     secret: process.env.ENCRYPTION_KEY ?? 'fallback-secret-change-me',
+  })
+
+  // ── Rate limiting (must be before routes so it sees authenticated user id) ──
+  // Global default: 120 req/min per user (in-memory; upgrade to Redis later for
+  // multi-instance). Per-user keying happens via the auth plugin populating req.dbUserId.
+  await app.register(rateLimit, {
+    global:        true,
+    max:           120,
+    timeWindow:    '1 minute',
+    keyGenerator:  (req: any) => req.dbUserId ?? req.ip,
+    errorResponseBuilder: (_req, ctx) => ({
+      statusCode: 429,
+      error:      'Too Many Requests',
+      message:    `Rate limit exceeded. Try again in ${Math.ceil((ctx as any).ttl / 1000)}s.`,
+    }),
+    skipOnError:   true,   // if the store fails, fail open rather than blocking everyone
   })
 
   // ── Auth (must be before routes) ────────────────────────────────
@@ -336,6 +353,49 @@ async function start() {
       }
     } catch (err) {
       console.error('Weekly brief job error:', err)
+    }
+  }, 60 * 60 * 1000)
+
+  // ── Monthly quota reset (hourly check, fires once per month per user) ───
+  // Each plan has a credit allotment per billing cycle. We treat the cycle
+  // as a calendar month for simplicity — Stripe still drives actual billing.
+  const PLAN_MONTHLY_CREDITS: Record<string, number> = {
+    FREE:       25,
+    PRO:        5_000,
+    ENTERPRISE: 50_000,
+  }
+  setInterval(async () => {
+    try {
+      const now      = new Date()
+      const monthAgo = new Date(now); monthAgo.setMonth(monthAgo.getMonth() - 1)
+      // Users whose last reset is null OR older than 1 month
+      const due = await prisma.user.findMany({
+        where:  { OR: [{ lastQuotaResetAt: null }, { lastQuotaResetAt: { lt: monthAgo } }] },
+        select: { id: true, plan: true, email: true },
+      })
+      for (const u of due) {
+        const allotment = PLAN_MONTHLY_CREDITS[u.plan] ?? PLAN_MONTHLY_CREDITS.FREE
+        await prisma.user.update({
+          where: { id: u.id },
+          data:  { creditsRemaining: allotment, lastQuotaResetAt: now },
+        })
+      }
+      if (due.length > 0) app.log.info(`[quota-reset] reset credits for ${due.length} users`)
+    } catch (err) {
+      console.error('Monthly quota reset error:', err)
+    }
+  }, 60 * 60 * 1000)
+
+  // ── Spend anomaly check (hourly) — log a warning if any user's spend today is 5x their 7-day avg ──
+  setInterval(async () => {
+    try {
+      const { checkSpendAnomalies } = await import('./lib/llm-usage.js')
+      const anomalies = await checkSpendAnomalies()
+      for (const a of anomalies) {
+        app.log.warn(`[spend-anomaly] user=${a.userId} today=$${a.todayUsd.toFixed(3)} avg=$${a.avgUsd.toFixed(3)} ratio=${(a.todayUsd / a.avgUsd).toFixed(1)}x`)
+      }
+    } catch (err) {
+      console.error('Spend anomaly check error:', err)
     }
   }, 60 * 60 * 1000)
 

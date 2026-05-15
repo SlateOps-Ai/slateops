@@ -218,6 +218,7 @@ model User {
   weeklyDigestEnabled  Boolean         @default(true)
   settings             Json?
   freeRunCredits       Int             @default(10)
+  lastQuotaResetAt     DateTime?
   createdAt            DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
@@ -237,9 +238,34 @@ model User {
   stripePayments   StripePayment[]
   teamMemberships  TeamMembership[]
   scheduledPosts   ScheduledPost[]
+  llmCallLogs      LlmCallLog[]
 
   @@index([clerkId])
   @@index([email])
+}
+
+model LlmCallLog {
+  id                String   @id @default(uuid())
+  userId            String
+  agentId           String?
+  endpoint          String   // e.g. /api/agents/:id/chat, /api/onboarding/compose
+  model             String   // e.g. claude-sonnet-4-6
+  provider          String   @default("ANTHROPIC")
+  byok              Boolean  @default(false)
+  inputTokens       Int      @default(0)
+  outputTokens      Int      @default(0)
+  cacheReadTokens   Int      @default(0)
+  cacheCreateTokens Int      @default(0)
+  estimatedCostUsd  Float    @default(0)
+  latencyMs         Int?
+  status            String   @default("OK") // OK | ERROR | RATE_LIMITED
+  errorMessage      String?
+  createdAt         DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }
 
 model Office {

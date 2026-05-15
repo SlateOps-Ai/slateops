@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../../lib/prisma.js'
 import { getAnthropicClient } from '../../lib/claude.js'
+import { logLlmCall, type AnthropicUsage } from '../../lib/llm-usage.js'
 
 const bodySchema = z.object({
   businessDescription: z.string().min(3).max(2000),
@@ -75,11 +76,14 @@ Rules:
 - No duplicate roles in the team.
 - Output via the recommend_team tool only — no chatty preamble.`
 
-async function composeWithLlm(businessDescription: string, topPainPoint: string): Promise<ComposedAgent[] | null> {
+async function composeWithLlm(businessDescription: string, topPainPoint: string, userId: string): Promise<ComposedAgent[] | null> {
+  const model = 'claude-sonnet-4-6'
+  const start = Date.now()
+  let response: any
   try {
     const client = getAnthropicClient()
-    const response = await client.messages.create({
-      model:      'claude-sonnet-4-6',
+    response = await client.messages.create({
+      model,
       max_tokens: 1024,
       system:     SYSTEM_PROMPT,
       messages: [{
@@ -112,8 +116,28 @@ async function composeWithLlm(businessDescription: string, topPainPoint: string)
       }],
       tool_choice: { type: 'tool', name: 'recommend_team' },
     })
+    await logLlmCall({
+      userId,
+      endpoint:  '/api/onboarding/compose',
+      model,
+      usage:     (response.usage ?? null) as AnthropicUsage | null,
+      latencyMs: Date.now() - start,
+    })
+  } catch (err) {
+    await logLlmCall({
+      userId,
+      endpoint:     '/api/onboarding/compose',
+      model,
+      usage:        null,
+      latencyMs:    Date.now() - start,
+      status:       'ERROR',
+      errorMessage: (err as Error).message?.slice(0, 500),
+    })
+    return null
+  }
+  try {
 
-    const toolUse = response.content.find((b) => b.type === 'tool_use')
+    const toolUse = (response.content as any[]).find((b: any) => b.type === 'tool_use')
     if (!toolUse || toolUse.type !== 'tool_use') return null
     const input = toolUse.input as { agents?: unknown }
     if (!Array.isArray(input.agents)) return null
@@ -144,7 +168,7 @@ export default async function onboardingComposeRoute(app: FastifyInstance) {
   app.post('/api/onboarding/compose', async (req, reply) => {
     const body = bodySchema.parse(req.body)
 
-    const llm   = await composeWithLlm(body.businessDescription, body.topPainPoint)
+    const llm   = await composeWithLlm(body.businessDescription, body.topPainPoint, req.dbUserId)
     const agents = llm ?? composeFallback(body.businessDescription, body.topPainPoint)
 
     const existing = await prisma.user.findUnique({ where: { id: req.dbUserId }, select: { settings: true } })

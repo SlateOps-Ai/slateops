@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../../lib/prisma.js'
 import { getAnthropicClient } from '../../lib/claude.js'
+import { logLlmCall, type AnthropicUsage } from '../../lib/llm-usage.js'
 
 const bodySchema = z.object({
   message:  z.string().min(1).max(4000),
@@ -81,17 +82,44 @@ You are in a direct conversation. Be concise, helpful, and stay in character.`
       createParams.tools = [DRAFT_SOCIAL_POST_TOOL]
     }
 
-    const response = await client.messages.create(createParams)
+    const startMs  = Date.now()
+    let response: any
+    try {
+      response = await client.messages.create(createParams)
+    } catch (err) {
+      await logLlmCall({
+        userId:       req.dbUserId,
+        agentId:      agent.id,
+        endpoint:     '/api/agents/:id/chat',
+        model:        createParams.model,
+        usage:        null,
+        byok:         !!user?.byokKey,
+        latencyMs:    Date.now() - startMs,
+        status:       'ERROR',
+        errorMessage: (err as Error).message?.slice(0, 500),
+      })
+      throw err
+    }
+    // Fire-and-forget usage log
+    await logLlmCall({
+      userId:    req.dbUserId,
+      agentId:   agent.id,
+      endpoint:  '/api/agents/:id/chat',
+      model:     createParams.model,
+      usage:     (response.usage ?? null) as AnthropicUsage | null,
+      byok:      !!user?.byokKey,
+      latencyMs: Date.now() - startMs,
+    })
 
-    const text = response.content
-      .filter((b) => b.type === 'text')
-      .map((b) => (b as { text: string }).text)
+    const text = (response.content as any[])
+      .filter((b: any) => b.type === 'text')
+      .map((b: any) => (b as { text: string }).text)
       .join('')
 
     // Look for a draftSocialPost tool call — if present, return its input as draftPost
     let draftPost: DraftPost | null = null
     if (isMarketing) {
-      const toolBlock = response.content.find((b) => b.type === 'tool_use' && (b as any).name === 'draftSocialPost')
+      const toolBlock = (response.content as any[]).find((b: any) => b.type === 'tool_use' && (b as any).name === 'draftSocialPost')
       if (toolBlock && toolBlock.type === 'tool_use') {
         const input = (toolBlock as any).input as Partial<DraftPost>
         if (input?.content && input?.platform && (SOCIAL_PLATFORMS as readonly string[]).includes(input.platform)) {
