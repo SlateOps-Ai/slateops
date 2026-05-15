@@ -15,7 +15,7 @@ import { TaskResultPanel } from '@/components/ui/TaskResultPanel'
 import { SettingsPanel } from '@/components/ui/SettingsPanel'
 import { OnboardingTakeover } from '@/components/ui/OnboardingTakeover'
 import { OfficeStatusBar } from '@/components/ui/OfficeStatusBar'
-import { OfficeChatInput } from '@/components/ui/OfficeChatInput'
+import { TeamChatPanel } from '@/components/ui/TeamChatPanel'
 import { WelcomeBackPanel } from '@/components/ui/WelcomeBackPanel'
 import { WorkflowBuilderPanel } from '@/components/ui/WorkflowBuilderPanel'
 import { McpConnectionsPanel } from '@/components/ui/McpConnectionsPanel'
@@ -445,7 +445,7 @@ export function OfficeCanvas() {
         </div>
       )}
     </div>
-    <OfficeChatInput />
+    <TeamChatPanel />
     </>
   )
 }

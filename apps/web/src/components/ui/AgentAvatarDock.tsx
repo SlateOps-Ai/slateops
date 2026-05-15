@@ -1,17 +1,13 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Lightbulb, AlertTriangle, TrendingUp, Megaphone } from 'lucide-react'
 import { useAgentsStore } from '@/stores/agents.store'
 import type { AgentNotification } from '@/stores/agents.store'
-import { MessageBubble } from '@/components/ui/MessageBubble'
-import { ThreadHistoryModal } from '@/components/ui/ThreadHistoryModal'
 import { cn } from '@/lib/utils'
 import { AGENT_ROLE_LABELS } from '@agentcity/types'
 import type { AgentStatus } from '@agentcity/types'
-
-const VISIBLE_MESSAGES = 3
 
 const DOOR_PIXI = { x: 80, y: 680 }
 
@@ -58,13 +54,13 @@ const CAM_CY = 420
 export function AgentAvatarDock() {
   const agents                 = useAgentsStore((s) => s.agents)
   const activeChatAgentId      = useAgentsStore((s) => s.activeChatAgentId)
+  const teamChatOpen           = useAgentsStore((s) => s.teamChatOpen)
   const setActiveChatAgent     = useAgentsStore((s) => s.setActiveChatAgent)
+  const setTeamChatOpen        = useAgentsStore((s) => s.setTeamChatOpen)
   const arrivingAgentIds       = useAgentsStore((s) => s.arrivingAgentIds)
   const markAgentArrived       = useAgentsStore((s) => s.markAgentArrived)
   const agentNotifications     = useAgentsStore((s) => s.agentNotifications)
   const dismissAgentNotification = useAgentsStore((s) => s.dismissAgentNotification)
-  const threads                = useAgentsStore((s) => s.threads)
-  const [historyAgentId, setHistoryAgentId] = useState<string | null>(null)
 
   // Auto-dismiss notifications after NOTIF_AUTO_DISMISS_MS. One timer per (agentId, notif.id).
   const scheduledRef = useRef<Set<string>>(new Set())
@@ -95,18 +91,13 @@ export function AgentAvatarDock() {
         const sx = slotPos.x + (vw / 2 - CAM_CX)
         const sy = slotPos.y + (vh / 2 - CAM_CY)
 
-        const isSelected = activeChatAgentId === agent.id
+        const isSelected = teamChatOpen && activeChatAgentId === agent.id
         const role = AGENT_ROLE_LABELS[agent.role as keyof typeof AGENT_ROLE_LABELS] ?? agent.role
 
         function toggle() {
           setActiveChatAgent(agent.id)
+          setTeamChatOpen(true)
         }
-
-        // Last N messages for the selected agent — shown stacked above the avatar
-        const messages = threads[agent.id] ?? []
-        const visibleStart = Math.max(0, messages.length - VISIBLE_MESSAGES)
-        const visibleMessages = isSelected ? messages.slice(visibleStart) : []
-        const earlierCount = isSelected ? visibleStart : 0
 
         const arrivalIdx = arrivingAgentIds.indexOf(agent.id)
         const isArriving = arrivalIdx >= 0
@@ -134,61 +125,39 @@ export function AgentAvatarDock() {
               onAnimationComplete: () => markAgentArrived(agent.id),
             })}
           >
-            {/* Bubbles column above the avatar — chat reply (closest to avatar) + notification (above) */}
-            <div className="absolute z-30 left-1/2 -translate-x-1/2 bottom-full mb-3 flex flex-col items-center gap-2 pointer-events-none">
-              <AnimatePresence>
-                {agentNotifications[agent.id] && (
-                  <motion.div
-                    key={agentNotifications[agent.id]!.id}
-                    initial={{ opacity: 0, y: 6, scale: 0.96 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 6, scale: 0.96 }}
-                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => e.stopPropagation()}
-                    className="pointer-events-auto w-[230px] rounded-xl border border-white/10 bg-panel-bg shadow-2xl backdrop-blur-sm cursor-default"
-                  >
-                    <div className="flex items-start gap-2 p-2.5">
-                      <span className="mt-0.5 shrink-0">{NOTIF_ICON[agentNotifications[agent.id]!.type]}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[8px] text-panel-muted">{agent.name} · just now</p>
-                        <p className="text-white text-[10px] font-medium mt-0.5 leading-snug">
-                          {agentNotifications[agent.id]!.headline}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => dismissAgentNotification(agent.id)}
-                        className="text-panel-muted hover:text-white shrink-0 transition-colors"
-                      >
-                        <X size={10} />
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Chat thread for selected agent — last N messages stacked, newest closest to avatar */}
-              {isSelected && earlierCount > 0 && (
-                <button
+            {/* Speech bubble for this agent's most recent notification */}
+            <AnimatePresence>
+              {agentNotifications[agent.id] && (
+                <motion.div
+                  key={agentNotifications[agent.id]!.id}
+                  initial={{ opacity: 0, y: 6, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.96 }}
+                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                   onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => { e.stopPropagation(); setHistoryAgentId(agent.id) }}
-                  className="pointer-events-auto text-[9px] text-panel-accent hover:text-white hover:underline italic px-2 py-0.5 rounded-md bg-panel-bg/70 border border-white/8"
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute z-30 left-1/2 -translate-x-1/2 bottom-full mb-3 w-[230px] rounded-xl border border-white/10 bg-panel-bg shadow-2xl backdrop-blur-sm cursor-default"
                 >
-                  ↑ {earlierCount} earlier · view full thread
-                </button>
+                  <div className="flex items-start gap-2 p-2.5">
+                    <span className="mt-0.5 shrink-0">{NOTIF_ICON[agentNotifications[agent.id]!.type]}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[8px] text-panel-muted">{agent.name} · just now</p>
+                      <p className="text-white text-[10px] font-medium mt-0.5 leading-snug">
+                        {agentNotifications[agent.id]!.headline}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => dismissAgentNotification(agent.id)}
+                      className="text-panel-muted hover:text-white shrink-0 transition-colors"
+                    >
+                      <X size={10} />
+                    </button>
+                  </div>
+                  {/* Tail pointing down to the avatar */}
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-panel-bg" />
+                </motion.div>
               )}
-              <AnimatePresence>
-                {visibleMessages.map((msg, i) => (
-                  <MessageBubble
-                    key={visibleStart + i}
-                    message={msg}
-                    messageIndex={visibleStart + i}
-                    agentId={agent.id}
-                    agentName={agent.name}
-                  />
-                ))}
-              </AnimatePresence>
-            </div>
+            </AnimatePresence>
 
             {/* Continuous idle bounce — inner motion layer doesn't fight the outer arrival translate */}
             <motion.div
@@ -241,19 +210,6 @@ export function AgentAvatarDock() {
           </motion.button>
         )
       })}
-
-      {historyAgentId && (() => {
-        const a = agents.find((x) => x.id === historyAgentId)
-        if (!a) return null
-        return (
-          <ThreadHistoryModal
-            agentId={a.id}
-            agentName={a.name}
-            avatarUrl={a.avatarUrl}
-            onClose={() => setHistoryAgentId(null)}
-          />
-        )
-      })()}
     </>
   )
 }

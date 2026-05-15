@@ -238,7 +238,7 @@ export function MemoryPanel({ agentId, agentName, onClose }: MemoryPanelProps) {
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 24 }}
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      className="fixed right-4 top-16 bottom-24 z-50 w-80 flex flex-col rounded-2xl border border-white/10 bg-panel-bg backdrop-blur-sm overflow-hidden shadow-2xl"
+      className="fixed right-[552px] top-16 bottom-16 z-50 w-80 flex flex-col rounded-2xl border border-white/10 bg-panel-bg backdrop-blur-sm overflow-hidden shadow-2xl"
     >
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 shrink-0">

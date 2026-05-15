@@ -52,9 +52,6 @@ interface AgentsState {
   arrivingAgentIds:       string[]
   agentNotifications:     Record<string, AgentNotification | null>
   pendingDraft:           { content: string; platform: string; suggestedAt?: string } | null
-  threads:                Record<string, ChatMessage[]>
-  lastTaskIds:            Record<string, string>
-  inputDraftText:         string | null
 
   setAgents:               (agents: Agent[]) => void
   addAgent:                (agent: Agent) => void
@@ -79,19 +76,6 @@ interface AgentsState {
   pushAgentNotification:   (agentId: string, notif: AgentNotification) => void
   dismissAgentNotification:(agentId: string) => void
   setPendingDraft:         (draft: { content: string; platform: string; suggestedAt?: string } | null) => void
-  appendThreadMessage:     (agentId: string, message: ChatMessage) => void
-  setLastTaskId:           (agentId: string, taskId: string | null) => void
-  updateThreadMessage:     (agentId: string, index: number, patch: Partial<ChatMessage>) => void
-  setInputDraftText:       (text: string | null) => void
-}
-
-export interface ChatMessage {
-  role:      'user' | 'assistant'
-  content:   string
-  draftPost?: { content: string; platform: string; suggestedAt?: string } | null
-  taskId?:   string | null
-  rating?:   'POSITIVE' | 'NEGATIVE' | null
-
 }
 
 export interface AgentNotification {
@@ -119,9 +103,6 @@ export const useAgentsStore = create<AgentsState>((set) => ({
   arrivingAgentIds:       [],
   agentNotifications:     {},
   pendingDraft:           null,
-  threads:                {},
-  lastTaskIds:            {},
-  inputDraftText:         null,
 
   setAgents: (agents) => set({ agents }),
 
@@ -197,26 +178,4 @@ export const useAgentsStore = create<AgentsState>((set) => ({
   pushAgentNotification:    (agentId, notif) => set((s) => ({ agentNotifications: { ...s.agentNotifications, [agentId]: notif } })),
   dismissAgentNotification: (agentId)        => set((s) => ({ agentNotifications: { ...s.agentNotifications, [agentId]: null } })),
   setPendingDraft:          (draft)           => set({ pendingDraft: draft }),
-
-  appendThreadMessage: (agentId, message) =>
-    set((s) => ({ threads: { ...s.threads, [agentId]: [...(s.threads[agentId] ?? []), message] } })),
-
-  setLastTaskId: (agentId, taskId) =>
-    set((s) => {
-      const next = { ...s.lastTaskIds }
-      if (taskId === null) delete next[agentId]
-      else next[agentId] = taskId
-      return { lastTaskIds: next }
-    }),
-
-  updateThreadMessage: (agentId, index, patch) =>
-    set((s) => {
-      const list = s.threads[agentId]
-      if (!list || index < 0 || index >= list.length) return {}
-      const next = [...list]
-      next[index] = { ...next[index], ...patch }
-      return { threads: { ...s.threads, [agentId]: next } }
-    }),
-
-  setInputDraftText: (text) => set({ inputDraftText: text }),
 }))

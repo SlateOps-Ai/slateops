@@ -48,7 +48,7 @@ export function ShareWidget({ agentId, agentName, isPublic: initialIsPublic, onC
   }
 
   return (
-    <div className="fixed right-4 top-1/2 -translate-y-1/2 z-50 w-[384px] rounded-2xl border border-white/10 bg-panel-bg shadow-2xl backdrop-blur-sm overflow-hidden">
+    <div className="fixed right-[552px] top-1/2 -translate-y-1/2 z-50 w-[384px] rounded-2xl border border-white/10 bg-panel-bg shadow-2xl backdrop-blur-sm overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
         <Share2 size={13} className="text-panel-accent" />
         <span className="text-white text-sm font-medium flex-1 truncate">{agentName} · Share Widget</span>
