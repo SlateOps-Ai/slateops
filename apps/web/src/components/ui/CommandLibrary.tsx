@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { BookOpen, Play, Calendar, Trash2, X, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -32,8 +33,38 @@ const CRON_PRESETS = [
 
 const API = process.env.NEXT_PUBLIC_API_URL
 
-export function CommandLibrary() {
-  const [open, setOpen]               = useState(false)
+interface CommandLibraryProps {
+  open:         boolean
+  onOpenChange: (open: boolean) => void
+  anchorRef:    RefObject<HTMLElement>
+}
+
+export function CommandLibrary({ open, onOpenChange, anchorRef }: CommandLibraryProps) {
+  const [coords, setCoords] = useState<{ left: number; bottom: number } | null>(null)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => { setMounted(true) }, [])
+
+  useEffect(() => {
+    if (!open) return
+    const update = () => {
+      const el = anchorRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      setCoords({
+        left:   rect.left,
+        bottom: window.innerHeight - rect.top + 8,
+      })
+    }
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [open, anchorRef])
+
   const [commands, setCommands]       = useState<SavedCommand[]>([])
   const [schedules, setSchedules]     = useState<Schedule[]>([])
   const [scheduling, setScheduling]   = useState<string | null>(null)  // savedCommandId
@@ -58,7 +89,7 @@ export function CommandLibrary() {
     setRunning(cmd.id)
     await authFetch(`${API}/api/library/${cmd.id}/run`, { method: 'POST' })
     setRunning(null)
-    setOpen(false)
+    onOpenChange(false)
   }
 
   async function remove(id: string) {
@@ -72,7 +103,7 @@ export function CommandLibrary() {
       body: JSON.stringify({ savedCommandId, cronExpr, label: cronLabel }),
     })
     setScheduling(null)
-    load()
+    await load()
   }
 
   async function cancelSchedule(id: string) {
@@ -82,35 +113,19 @@ export function CommandLibrary() {
 
   const hasSchedule = (cmdId: string) => schedules.some((s) => s.savedCommandId === cmdId)
 
-  return (
-    <>
-      {/* Trigger button */}
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className={cn(
-          'absolute bottom-4 left-1/2 -translate-x-1/2 z-20',
-          'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium',
-          'border backdrop-blur-sm transition-all',
-          open
-            ? 'bg-panel-accent/20 border-panel-accent/50 text-panel-accent'
-            : 'bg-panel-bg border-white/10 text-panel-muted hover:text-white hover:border-white/20'
-        )}
-      >
-        <BookOpen size={13} />
-        Command library
-        <ChevronDown size={12} className={cn('transition-transform', open && 'rotate-180')} />
-      </button>
+  if (!mounted) return null
 
-      {/* Drawer */}
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 16 }}
-            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute bottom-14 left-1/2 -translate-x-1/2 z-20 w-full max-w-2xl px-4"
-          >
+  return createPortal(
+    <AnimatePresence>
+      {open && coords && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 8 }}
+          transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+          style={{ position: 'fixed', left: coords.left, bottom: coords.bottom }}
+          className="z-50 w-[640px] max-w-[90vw]"
+        >
             <div className="rounded-2xl border border-white/10 bg-panel-bg backdrop-blur-sm overflow-hidden shadow-2xl">
               {/* Header */}
               <div className="flex items-center px-4 py-3 border-b border-white/10">
@@ -118,7 +133,7 @@ export function CommandLibrary() {
                   Saved commands
                   <span className="text-panel-muted text-xs ml-2">({commands.length})</span>
                 </p>
-                <button onClick={() => setOpen(false)} className="text-panel-muted hover:text-white transition-colors">
+                <button onClick={() => onOpenChange(false)} className="text-panel-muted hover:text-white transition-colors">
                   <X size={14} />
                 </button>
               </div>
@@ -242,9 +257,9 @@ export function CommandLibrary() {
                 </div>
               )}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body,
   )
 }

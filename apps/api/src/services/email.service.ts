@@ -79,6 +79,166 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
+export interface DailyBriefData {
+  userName:         string
+  userEmail:        string
+  tasksCompleted:   number
+  pendingApprovals: number
+  agentNames:       string[]
+  briefUrl:         string
+  officeUrl:        string
+}
+
+export async function sendDailyBrief(data: DailyBriefData): Promise<void> {
+  const resend  = getResend()
+  const subject = data.pendingApprovals > 0
+    ? `Your SlateOps brief — ${data.tasksCompleted} tasks done, ${data.pendingApprovals} waiting for you`
+    : `Your SlateOps brief — ${data.tasksCompleted} tasks done yesterday`
+
+  await resend.emails.send({
+    from:    'SlateOps <briefs@slateops.tech>',
+    to:      data.userEmail,
+    subject,
+    html:    renderDailyBrief(data),
+  })
+}
+
+function renderDailyBrief(d: DailyBriefData): string {
+  const approvalSection = d.pendingApprovals > 0 ? `
+    <tr>
+      <td style="padding:16px 32px;background:#1a1000;border-bottom:1px solid #2a1f00">
+        <table width="100%" cellpadding="0" cellspacing="0"><tr>
+          <td style="vertical-align:middle">
+            <p style="margin:0 0 2px;color:#f59e0b;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase">
+              Action required
+            </p>
+            <p style="margin:0;color:#ffffff;font-size:14px;font-weight:600">
+              ${d.pendingApprovals} task${d.pendingApprovals > 1 ? 's' : ''} waiting for your approval
+            </p>
+          </td>
+          <td style="text-align:right;vertical-align:middle;padding-left:16px;white-space:nowrap">
+            <a href="${d.briefUrl}"
+               style="display:inline-block;background:#f59e0b;color:#0d111f;font-size:12px;
+                      font-weight:700;padding:8px 16px;border-radius:8px;text-decoration:none">
+              Review now →
+            </a>
+          </td>
+        </tr></table>
+      </td>
+    </tr>` : ''
+
+  const agentLine = d.agentNames.length
+    ? `Your agents: ${d.agentNames.join(', ')}`
+    : 'Your agents are ready for new tasks.'
+
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0d111f;font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr><td align="center" style="padding:32px 16px">
+      <table width="520" cellpadding="0" cellspacing="0"
+             style="background:#12172b;border-radius:16px;border:1px solid #1e2540;overflow:hidden">
+
+        <tr>
+          <td style="padding:28px 32px 20px;border-bottom:1px solid #1e2540">
+            <p style="margin:0 0 4px;color:#4d7fff;font-size:11px;font-weight:600;
+                      letter-spacing:0.1em;text-transform:uppercase">Daily brief</p>
+            <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:700;line-height:1.2">
+              What happened while you were away
+            </h1>
+            <p style="margin:8px 0 0;color:#8892b0;font-size:13px">
+              Morning, ${escapeHtml(d.userName.split(' ')[0])}. Here's your office update.
+            </p>
+          </td>
+        </tr>
+
+        ${approvalSection}
+
+        <tr>
+          <td style="padding:20px 32px;border-bottom:1px solid #1e2540;background:#0f1426">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="text-align:center;padding:0 16px">
+                  <p style="margin:0;color:#4dffa0;font-size:32px;font-weight:700">${d.tasksCompleted}</p>
+                  <p style="margin:4px 0 0;color:#8892b0;font-size:11px">tasks completed</p>
+                </td>
+                <td style="text-align:center;padding:0 16px;border-left:1px solid #1e2540">
+                  <p style="margin:0;color:${d.pendingApprovals > 0 ? '#f59e0b' : '#ffffff'};font-size:32px;font-weight:700">${d.pendingApprovals}</p>
+                  <p style="margin:4px 0 0;color:#8892b0;font-size:11px">awaiting approval</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:16px 32px;border-bottom:1px solid #1e2540">
+            <p style="margin:0;color:#8892b0;font-size:12px;line-height:1.6">${escapeHtml(agentLine)}</p>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:20px 32px 28px;text-align:center">
+            <a href="${d.officeUrl}"
+               style="display:inline-block;background:#4d7fff;color:#ffffff;font-size:13px;
+                      font-weight:600;padding:10px 24px;border-radius:10px;text-decoration:none">
+              Open your office →
+            </a>
+            <p style="margin:16px 0 0;color:#8892b0;font-size:11px">
+              SlateOps · <a href="${d.officeUrl.replace('/office', '/settings')}"
+              style="color:#4d7fff;text-decoration:none">manage email preferences</a>
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+}
+
+export interface TeamInviteData {
+  toEmail:     string
+  teamName:    string
+  inviterName: string
+  inviteUrl:   string
+}
+
+export async function sendTeamInvite(data: TeamInviteData): Promise<void> {
+  const resend = getResend()
+  await resend.emails.send({
+    from:    'SlateOps <briefs@slateops.tech>',
+    to:      data.toEmail,
+    subject: `${data.inviterName} invited you to "${data.teamName}" on SlateOps`,
+    html: `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#0d111f;font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr><td align="center" style="padding:40px 16px">
+      <table width="480" cellpadding="0" cellspacing="0"
+             style="background:#12172b;border-radius:16px;border:1px solid #1e2540;overflow:hidden">
+        <tr><td style="padding:32px 36px 24px;border-bottom:1px solid #1e2540">
+          <p style="margin:0 0 4px;color:#4d7fff;font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase">Team invitation</p>
+          <h2 style="margin:0;color:#fff;font-size:20px;font-weight:700">You're invited to join "${escapeHtml(data.teamName)}"</h2>
+          <p style="margin:10px 0 0;color:#8892b0;font-size:13px">${escapeHtml(data.inviterName)} invited you to collaborate on SlateOps.</p>
+        </td></tr>
+        <tr><td style="padding:24px 36px 32px;text-align:center">
+          <a href="${data.inviteUrl}"
+             style="display:inline-block;background:#4d7fff;color:#fff;font-size:13px;font-weight:600;padding:12px 28px;border-radius:10px;text-decoration:none">
+            Accept invitation →
+          </a>
+          <p style="margin:16px 0 0;color:#8892b0;font-size:11px">This invite expires in 72 hours.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`,
+  })
+}
+
 export interface BriefData {
   userName:    string
   userEmail:   string

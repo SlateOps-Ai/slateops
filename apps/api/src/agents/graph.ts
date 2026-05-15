@@ -7,6 +7,9 @@ import { prisma } from '../lib/prisma.js'
 import { emitEvent } from '../services/events.service.js'
 import { executeStepNode } from './nodes/execute-step.js'
 import { needsApprovalNode } from './nodes/needs-approval.js'
+import { scoreConfidence } from '../lib/confidence.js'
+import { writeAudit } from '../lib/audit.js'
+import { registerExecutor, unregisterExecutor } from './executor-registry.js'
 
 // ── State Schema ───────────────────────────────────────────────────────────
 
@@ -47,8 +50,8 @@ export const AgentGraphAnnotation = Annotation.Root({
   finalResult: Annotation<FinalResult | null>({ default: () => null, reducer: (_, b) => b }),
   error:       Annotation<string | null>({ default: () => null, reducer: (_, b) => b }),
 
-  // Injected executor (Composio wrapper passed in at runtime)
-  executeTool: Annotation<(name: string, input: unknown) => Promise<unknown>>(),
+  // When true (workflow mode) skip the human-in-the-loop approval gate for destructive tools
+  skipApproval: Annotation<boolean>({ default: () => false, reducer: (_, b) => b }),
 })
 
 export type AgentGraphState = typeof AgentGraphAnnotation.State
@@ -75,6 +78,7 @@ interface FinalResult {
 
 async function extractAndSaveMemories(
   agentId: string,
+  taskId:  string,
   rawCommand: string,
   stepOutputs: Array<{ step: string; output: string }>,
   byokKey?: string,
@@ -85,14 +89,15 @@ async function extractAndSaveMemories(
 
     const response = await client.messages.create({
       model:      'claude-haiku-4-5-20251001',
-      max_tokens: 256,
-      system: `Extract 0-3 memorable facts about the user's working context, preferences, or style
-from this completed task. Only extract facts useful for future tasks (tone preferences, industry, brand voice, recurring patterns).
-Return ONLY JSON: {"memories":[{"key":"snake_case_name","value":"concise fact"}]}
-Keys ≤40 chars, values ≤200 chars. Return {"memories":[]} if nothing meaningful.`,
+      max_tokens: 400,
+      system: `Extract 0-4 memorable facts about the user's working context, preferences, or style
+from this completed task. Only extract facts useful for future tasks (tone preferences, industry, brand voice, recurring patterns, key contacts, domain-specific terms).
+Return ONLY JSON: {"memories":[{"key":"snake_case_name","value":"concise fact","confidence":0.85}]}
+Keys ≤40 chars, values ≤200 chars. confidence 0–1 (how certain you are this fact is useful and accurate).
+Return {"memories":[]} if nothing meaningful.`,
       messages: [{
         role:    'user',
-        content: `Task: ${rawCommand}\n\nOutputs:\n${stepOutputs.map((s) => s.output).join('\n\n').slice(0, 1500)}`,
+        content: `Task: ${rawCommand}\n\nOutputs:\n${stepOutputs.map((s) => s.output).join('\n\n').slice(0, 2000)}`,
       }],
     })
 
@@ -102,14 +107,53 @@ Keys ≤40 chars, values ≤200 chars. Return {"memories":[]} if nothing meaning
       .join('')
 
     const { memories } = JSON.parse(text)
-    for (const mem of (memories as Array<{ key: string; value: string }>)) {
+    for (const mem of (memories as Array<{ key: string; value: string; confidence?: number }>)) {
       if (!mem.key || !mem.value) continue
       await prisma.agentMemory.upsert({
         where:  { agentId_key: { agentId, key: mem.key } },
-        create: { agentId, key: mem.key, value: mem.value },
-        update: { value: mem.value },
+        create: {
+          agentId,
+          key:        mem.key,
+          value:      mem.value,
+          source:     'AUTO',
+          taskId,
+          confidence: mem.confidence ?? null,
+        },
+        update: {
+          value:      mem.value,
+          source:     'AUTO',
+          taskId,
+          confidence: mem.confidence ?? null,
+        },
       })
     }
+  } catch { /* non-fatal */ }
+}
+
+async function ingestToBrain(
+  userId:    string,
+  agentId:   string,
+  taskId:    string,
+  taskTitle: string,
+  result:    FinalResult,
+): Promise<void> {
+  try {
+    if (result.type !== 'text' && result.type !== 'document') return
+    const content = typeof result.content === 'string'
+      ? result.content.slice(0, 3000)
+      : JSON.stringify(result.content).slice(0, 3000)
+    if (!content.trim()) return
+    await prisma.brainNode.create({
+      data: {
+        userId,
+        topic:          taskTitle,
+        content,
+        category:       'task_output',
+        importance:     2,
+        linkedTaskIds:  [taskId],
+        linkedAgentIds: [agentId],
+      },
+    })
   } catch { /* non-fatal */ }
 }
 
@@ -146,46 +190,81 @@ async function sendTaskCompleteEmail(
 // ── Nodes ─────────────────────────────────────────────────────────────────
 
 async function planStepsNode(state: AgentGraphState): Promise<Partial<AgentGraphState>> {
-  const { getAnthropicClient } = await import('../lib/claude.js')
-  const client = getAnthropicClient(state.byokKey)
+  const fallback: TaskStep[] = [{ name: 'execute', description: state.rawCommand, instruction: state.rawCommand }]
 
-  const response = await client.messages.create({
-    model:      'claude-haiku-4-5-20251001',
-    max_tokens: 512,
-    system:     `You are a task planner. Break the command into 2-4 concrete sequential steps.
+  try {
+    const { getAnthropicClient } = await import('../lib/claude.js')
+    const client = getAnthropicClient(state.byokKey)
+
+    const response = await client.messages.create({
+      model:      'claude-haiku-4-5-20251001',
+      max_tokens: 512,
+      system:     `You are a task planner. Break the command into 2-4 concrete sequential steps.
 Return ONLY a JSON array: [{"name":"string","description":"string","instruction":"string"}]
 "instruction" is the exact prompt that will be sent to an LLM to complete that step.
 Keep steps specific and actionable.`,
-    messages: [{ role: 'user', content: state.rawCommand }],
-  })
+      messages: [{ role: 'user', content: state.rawCommand }],
+    })
 
-  const text = response.content
-    .filter((b) => b.type === 'text')
-    .map((b) => (b as { text: string }).text)
-    .join('')
+    const text = response.content
+      .filter((b) => b.type === 'text')
+      .map((b) => (b as { text: string }).text)
+      .join('')
 
-  let steps: TaskStep[] = []
-  try {
-    steps = JSON.parse(text)
+    let steps: TaskStep[] = []
+    try { steps = JSON.parse(text) } catch { steps = fallback }
+
+    return { steps: steps.length ? steps : fallback, currentStepIndex: 0 }
   } catch {
-    steps = [{ name: 'execute', description: state.rawCommand, instruction: state.rawCommand }]
+    return { steps: fallback, currentStepIndex: 0 }
   }
-
-  return { steps, currentStepIndex: 0 }
 }
 
 async function compileResultNode(state: AgentGraphState): Promise<Partial<AgentGraphState>> {
-  const { getAnthropicClient } = await import('../lib/claude.js')
-  const client = getAnthropicClient(state.byokKey)
-
   const stepsText = state.stepOutputs
     .map((s, i) => `Step ${i + 1} (${s.step}):\n${s.output}`)
     .join('\n\n')
 
-  const response = await client.messages.create({
-    model:      'claude-haiku-4-5-20251001',
-    max_tokens: 2048,
-    system: `You compile step outputs into a single polished result. Choose the most appropriate type:
+  // Fallback result used when the Claude compile call fails or all steps soft-failed
+  let result: FinalResult = {
+    type:    'text',
+    title:   state.taskTitle,
+    content: stepsText || 'Task completed.',
+  }
+
+  const hasRealOutputs = state.stepOutputs.some(
+    (s) => s.output && !s.output.startsWith('Unable to complete step')
+  )
+
+  if (hasRealOutputs) {
+    try {
+      const { getAnthropicClient } = await import('../lib/claude.js')
+      const client = getAnthropicClient(state.byokKey)
+
+      // Detect if the user requested a specific file format
+      const cmdLower = state.rawCommand.toLowerCase()
+      const formatKeywords: Array<[string[], string]> = [
+        [['word document', 'word doc', '.docx', 'docx'],        'docx'],
+        [['excel', 'spreadsheet', '.xlsx', 'xlsx'],              'xlsx'],
+        [['pdf', '.pdf'],                                        'pdf'],
+        [['csv', '.csv', 'comma-separated'],                     'csv'],
+        [['text file', '.txt', 'plain text file'],               'txt'],
+      ]
+      let detectedFormat: string | null = null
+      for (const [kws, fmt] of formatKeywords) {
+        if (kws.some((kw) => cmdLower.includes(kw))) { detectedFormat = fmt; break }
+      }
+
+      const formatInstruction = detectedFormat === 'xlsx' || detectedFormat === 'csv'
+        ? `The user requested a ${detectedFormat.toUpperCase()} file. Structure content as valid CSV text: first line is headers, following lines are data rows. Use commas as delimiters. Quote fields that contain commas.`
+        : detectedFormat
+        ? `The user requested a ${detectedFormat.toUpperCase()} file. Produce clean, well-structured plain text or markdown content — it will be converted to ${detectedFormat.toUpperCase()} automatically.`
+        : ''
+
+      const response = await client.messages.create({
+        model:      'claude-haiku-4-5-20251001',
+        max_tokens: 2048,
+        system: `You compile step outputs into a single polished result. Choose the most appropriate type:
 
 - "email_draft": when the result is an email to send. content = { "to": string, "subject": string, "body": string }
 - "calendar_event": when creating a meeting/event. content = { "title": string, "start": string, "end": string, "location": string }
@@ -193,95 +272,150 @@ async function compileResultNode(state: AgentGraphState): Promise<Partial<AgentG
 - "document": when the result is a report, analysis, or long-form content. content = "full text"
 - "text": for short answers or summaries. content = "text"
 
-Return ONLY valid JSON: {"type":"<type>","title":"<concise title>","content":<content matching the schema above>}`,
-    messages: [
-      {
-        role: 'user',
-        content: `Original command: ${state.rawCommand}\n\nStep outputs:\n${stepsText}`,
-      },
-    ],
-  })
+${formatInstruction ? formatInstruction + '\n\n' : ''}Return ONLY valid JSON: {"type":"<type>","title":"<concise title>","content":<content matching the schema above>${detectedFormat ? `,"format":"${detectedFormat}"` : ''}}`,
+        messages: [{
+          role:    'user',
+          content: `Original command: ${state.rawCommand}\n\nStep outputs:\n${stepsText}`,
+        }],
+      })
 
-  const text = response.content
-    .filter((b) => b.type === 'text')
-    .map((b) => (b as { text: string }).text)
-    .join('')
+      const text = response.content
+        .filter((b) => b.type === 'text')
+        .map((b) => (b as { text: string }).text)
+        .join('')
 
-  let result: FinalResult = { type: 'text', title: state.taskTitle, content: text }
-  try {
-    result = JSON.parse(text)
-  } catch { /* use text fallback */ }
+      const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+      try {
+        const parsed: FinalResult = JSON.parse(stripped)
+        if (parsed.content && typeof parsed.content === 'object' && 'content' in (parsed.content as object)) {
+          parsed.content = (parsed.content as any).content
+        }
+        result = parsed
+      } catch { /* use text fallback */ }
+    } catch { /* compile call failed — use raw step text as result */ }
+  }
+
+  const { band: confidenceBand } = scoreConfidence(state.stepOutputs)
 
   // Persist result and mark task complete
-  await prisma.task.update({
-    where: { id: state.taskId },
-    data: {
-      status:      'COMPLETE',
-      result:      result as object,
-      tokensUsed:  state.tokensUsed,
-      costUsd:     state.costUsd,
-      completedAt: new Date(),
-    },
-  })
+  await Promise.all([
+    prisma.task.update({
+      where: { id: state.taskId },
+      data: {
+        status:      'COMPLETE',
+        result:      result as object,
+        tokensUsed:  state.tokensUsed,
+        costUsd:     state.costUsd,
+        confidence:  confidenceBand,
+        completedAt: new Date(),
+      },
+    }),
+    prisma.agent.update({
+      where: { id: state.agentId },
+      data:  { status: 'IDLE' },
+    }),
+  ])
 
-  // Deduct credits
-  await prisma.creditEntry.create({
-    data: {
-      userId:      state.agent.userId,
-      taskId:      state.taskId,
-      amount:      -1,
-      reason:      'TASK_CONSUMPTION',
-      description: `Task: ${state.taskTitle}`,
-    },
-  })
+  // Deduct credits — non-fatal: a billing error should never fail a completed task
+  try {
+    await prisma.creditEntry.create({
+      data: {
+        userId:      state.agent.userId,
+        taskId:      state.taskId,
+        amount:      -1,
+        reason:      'TASK_CONSUMPTION',
+        description: `Task: ${state.taskTitle}`,
+      },
+    })
+    await prisma.user.update({
+      where: { id: state.agent.userId },
+      data:  { creditsRemaining: { decrement: 1 } },
+    })
+  } catch { /* non-fatal */ }
 
-  await prisma.user.update({
-    where: { id: state.agent.userId },
-    data:  { creditsRemaining: { decrement: 1 } },
-  })
+  // Auto-save to command library — non-fatal: long instructions can exceed column limits
+  try {
+    const truncatedCommand = state.rawCommand.slice(0, 800)
+    await prisma.savedCommand.upsert({
+      where:  { userId_rawCommand: { userId: state.agent.userId, rawCommand: truncatedCommand } },
+      create: {
+        userId:     state.agent.userId,
+        agentId:    state.agentId,
+        title:      state.taskTitle,
+        rawCommand: truncatedCommand,
+        runCount:   1,
+        lastRunAt:  new Date(),
+      },
+      update: {
+        runCount:  { increment: 1 },
+        lastRunAt: new Date(),
+        title:     state.taskTitle,
+      },
+    })
+  } catch { /* non-fatal */ }
 
-  // Auto-save to command library (upsert — bump runCount if command already saved)
-  await prisma.savedCommand.upsert({
-    where:  { userId_rawCommand: { userId: state.agent.userId, rawCommand: state.rawCommand } },
-    create: {
-      userId:    state.agent.userId,
-      agentId:   state.agentId,
-      title:     state.taskTitle,
-      rawCommand: state.rawCommand,
-      runCount:  1,
-      lastRunAt: new Date(),
-    },
-    update: {
-      runCount:  { increment: 1 },
-      lastRunAt: new Date(),
-      title:     state.taskTitle,
-    },
-  })
+  // Emit completion event — non-fatal: socket errors must not fail a completed task
+  try {
+    await emitEvent(state.agentId, {
+      type:    'TASK_COMPLETE',
+      taskId:  state.taskId,
+      agentId: state.agentId,
+      payload: {
+        thoughtBubble: 'Done!',
+        result: {
+          type:       result.type as any,
+          title:      result.title,
+          content:    result.content,
+          confidence: confidenceBand,
+        },
+      },
+    })
+  } catch { /* non-fatal */ }
 
-  await emitEvent(state.agentId, {
-    type: 'TASK_COMPLETE',
-    taskId: state.taskId,
-    agentId: state.agentId,
-    payload: {
-      thoughtBubble: 'Done!',
-      result: { type: result.type as any, title: result.title, content: result.content },
-    },
-  })
+  try { writeAudit({
+    userId:     state.agent.userId,
+    agentId:    state.agentId,
+    taskId:     state.taskId,
+    action:     'TASK_COMPLETE',
+    entityType: 'task',
+    payload:    { title: state.taskTitle, confidence: confidenceBand, costUsd: state.costUsd },
+  }) } catch { /* non-fatal */ }
 
-  // Run memory extraction and email notification in parallel, non-blocking
+  // Determine XP reason based on task complexity
+  const complexityXpReason = (() => {
+    const complexity = (state as any).complexity ?? 'MEDIUM'
+    if (complexity === 'SIMPLE')  return 'TASK_COMPLETE_SIMPLE'  as const
+    if (complexity === 'COMPLEX') return 'TASK_COMPLETE_COMPLEX' as const
+    return 'TASK_COMPLETE_MEDIUM' as const
+  })()
+
+  // Run memory extraction, email, XP award, and brain ingest in parallel — all non-blocking
   Promise.all([
-    extractAndSaveMemories(state.agentId, state.rawCommand, state.stepOutputs, state.byokKey),
+    extractAndSaveMemories(state.agentId, state.taskId, state.rawCommand, state.stepOutputs, state.byokKey),
     sendTaskCompleteEmail(state.agentId, state.agent.userId, result, state.taskTitle),
+    import('../services/gamification.service.js')
+      .then(({ awardXp }) => awardXp(state.agent.userId, complexityXpReason, state.taskId))
+      .catch(() => {}),
+    import('../services/gamification.service.js')
+      .then(({ awardAgentXp }) => awardAgentXp(state.agentId, state.agent.userId, state.taskId))
+      .catch(() => {}),
+    ingestToBrain(state.agent.userId, state.agentId, state.taskId, state.taskTitle, result),
   ]).catch((err) => console.error('Post-task hooks error:', err))
 
   return { finalResult: result }
 }
 
 async function handleErrorNode(state: AgentGraphState): Promise<Partial<AgentGraphState>> {
-  await prisma.task.update({
-    where: { id: state.taskId },
-    data:  { status: 'FAILED' },
-  })
+  await Promise.all([
+    prisma.task.update({
+      where: { id: state.taskId },
+      data:  { status: 'FAILED' },
+    }),
+    prisma.agent.update({
+      where: { id: state.agentId },
+      data:  { status: 'IDLE' },
+    }),
+  ])
 
   await emitEvent(state.agentId, {
     type: 'TASK_FAILED',
@@ -295,6 +429,15 @@ async function handleErrorNode(state: AgentGraphState): Promise<Partial<AgentGra
         retryable:  true,
       },
     },
+  })
+
+  writeAudit({
+    userId:     state.agent.userId,
+    agentId:    state.agentId,
+    taskId:     state.taskId,
+    action:     'TASK_FAILED',
+    entityType: 'task',
+    payload:    { error: state.error ?? 'Unknown error' },
   })
 
   return {}
@@ -350,28 +493,33 @@ export async function getCompiledGraph() {
 // ── Public API ─────────────────────────────────────────────────────────────
 
 export async function startAgentTask(params: {
-  taskId:    string
-  agentId:   string
-  agent:     Agent
-  rawCommand: string
-  taskTitle: string
-  byokKey?:  string
-  executeTool: (name: string, input: unknown) => Promise<unknown>
+  taskId:       string
+  agentId:      string
+  agent:        Agent
+  rawCommand:   string
+  taskTitle:    string
+  byokKey?:     string
+  skipApproval?: boolean
+  executeTool:  (name: string, input: unknown) => Promise<unknown>
 }): Promise<void> {
   const compiled = await getCompiledGraph()
-
-  await compiled.invoke(
-    {
-      taskId:      params.taskId,
-      agentId:     params.agentId,
-      agent:       params.agent,
-      rawCommand:  params.rawCommand,
-      taskTitle:   params.taskTitle,
-      byokKey:     params.byokKey,
-      executeTool: params.executeTool,
-    },
-    { configurable: { thread_id: params.taskId } }
-  )
+  registerExecutor(params.taskId, params.executeTool)
+  try {
+    await compiled.invoke(
+      {
+        taskId:       params.taskId,
+        agentId:      params.agentId,
+        agent:        params.agent,
+        rawCommand:   params.rawCommand,
+        taskTitle:    params.taskTitle,
+        byokKey:      params.byokKey,
+        skipApproval: params.skipApproval ?? false,
+      },
+      { configurable: { thread_id: params.taskId } }
+    )
+  } finally {
+    unregisterExecutor(params.taskId)
+  }
 }
 
 export async function resumeAgentTask(params: {
@@ -381,15 +529,18 @@ export async function resumeAgentTask(params: {
   executeTool:      (name: string, input: unknown) => Promise<unknown>
 }): Promise<void> {
   const compiled = await getCompiledGraph()
-
-  await compiled.invoke(
-    {
-      waitingForApproval: false,
-      pendingApprovalTool: null,
-      approvalDecision:   params.approvalDecision,
-      approvalEdit:       params.approvalEdit ?? null,
-      executeTool:        params.executeTool,
-    },
-    { configurable: { thread_id: params.taskId } }
-  )
+  registerExecutor(params.taskId, params.executeTool)
+  try {
+    await compiled.invoke(
+      {
+        waitingForApproval: false,
+        pendingApprovalTool: null,
+        approvalDecision:   params.approvalDecision,
+        approvalEdit:       params.approvalEdit ?? null,
+      },
+      { configurable: { thread_id: params.taskId } }
+    )
+  } finally {
+    unregisterExecutor(params.taskId)
+  }
 }

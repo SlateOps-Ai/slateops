@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@clerk/nextjs/server'
+import { LandingPage } from '@/components/landing/LandingPage'
 
 export default async function Home() {
   const { userId } = await auth()
-  redirect(userId ? '/office' : '/sign-in')
+  if (userId) redirect('/office')
+  return <LandingPage />
 }

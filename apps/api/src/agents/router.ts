@@ -3,12 +3,13 @@ import type { RouterDecision } from '@agentcity/types'
 import { getAnthropicClient } from '../lib/claude.js'
 
 const ROUTER_SYSTEM = `You are a task router for an AI-powered office.
-Given a natural language command and a list of available agents, decide which agent should handle it.
+Given a natural language command and a list of agents (with their current status), decide which agent should handle it.
+Prefer IDLE agents, but if the command explicitly names a WORKING agent, assign it to them anyway.
 Return ONLY a valid JSON object matching the RouterDecision schema — no markdown, no prose.
 
 RouterDecision schema:
 {
-  "targetAgentId": string | null,       // null if no suitable agent or all are busy
+  "targetAgentId": string | null,       // null only if no agents exist at all
   "taskTitle": string,                  // concise title ≤ 60 chars
   "taskSummary": string,               // one sentence
   "estimatedComplexity": "SIMPLE" | "MEDIUM" | "COMPLEX",
@@ -25,7 +26,7 @@ export async function routeCommand(
   const client = getAnthropicClient(byokKey)
 
   const agentList = agents
-    .filter((a) => a.isActive && a.status !== 'WORKING')
+    .filter((a) => a.isActive)
     .map((a) => `- id: ${a.id}, name: ${a.name}, role: ${a.role}, status: ${a.status}`)
     .join('\n')
 

@@ -19,8 +19,33 @@ export default async function createTaskRoute(app: FastifyInstance) {
     const user = await prisma.user.findUnique({ where: { id: userId } })
     if (!user) return reply.code(404).send({ error: 'User not found' })
 
-    if (user.creditsRemaining <= 0 && !user.byokKey) {
-      return reply.code(402).send({ error: 'No credits remaining', code: 'NO_CREDITS' })
+    const effectiveCredits = user.creditsRemaining + (user.freeRunCredits ?? 0)
+    const hasByok = Boolean(user.byokKey)
+
+    if (effectiveCredits <= 0 && !hasByok) {
+      return reply.code(402).send({
+        error:   "You've used your 10 free credits.",
+        detail:  'Add your own API key to keep going for free, or upgrade for unlimited runs and the full control suite.',
+        code:    'NO_CREDITS',
+        byok:    false,
+        actions: [
+          { label: 'Add API key — it\'s free', url: '/settings?tab=byok', primary: true  },
+          { label: 'Upgrade plan',             url: '/billing',           primary: false },
+        ],
+      })
+    }
+
+    // Future-proof: BYOK user hitting a tier-level gate
+    if (effectiveCredits <= 0 && hasByok) {
+      return reply.code(402).send({
+        error:   'Your current plan limit has been reached.',
+        detail:  'Upgrade to Business to unlock higher task volumes, multi-team support, and the full audit trail.',
+        code:    'NO_CREDITS',
+        byok:    true,
+        actions: [
+          { label: 'Upgrade to Business', url: '/billing', primary: true },
+        ],
+      })
     }
 
     // Load agents for this user
@@ -38,22 +63,30 @@ export default async function createTaskRoute(app: FastifyInstance) {
     let complexity: 'SIMPLE' | 'MEDIUM' | 'COMPLEX' = 'MEDIUM'
 
     if (!targetAgentId) {
-      const decision = await routeCommand(body.rawCommand, agents, user.byokKey ?? undefined)
+      // Fast-path: if the command explicitly mentions an agent by name, assign directly
+      const cmd = body.rawCommand.toLowerCase()
+      const namedAgent = agents.find((a) => cmd.includes(a.name.toLowerCase()))
 
-      if (decision.clarificationNeeded) {
-        return reply.send({
-          clarification: true,
-          question: decision.clarificationQuestion,
-        })
+      if (namedAgent) {
+        targetAgentId = namedAgent.id
+      } else {
+        const decision = await routeCommand(body.rawCommand, agents, user.byokKey ?? undefined)
+
+        if (decision.clarificationNeeded) {
+          return reply.send({
+            clarification: true,
+            question: decision.clarificationQuestion,
+          })
+        }
+
+        if (!decision.targetAgentId) {
+          return reply.code(400).send({ error: 'No suitable agent available for this task.' })
+        }
+
+        targetAgentId = decision.targetAgentId
+        taskTitle     = decision.taskTitle
+        complexity    = decision.estimatedComplexity
       }
-
-      if (!decision.targetAgentId) {
-        return reply.code(400).send({ error: 'No suitable agent available for this task.' })
-      }
-
-      targetAgentId = decision.targetAgentId
-      taskTitle     = decision.taskTitle
-      complexity    = decision.estimatedComplexity
     }
 
     const agent = agents.find((a: { id: string }) => a.id === targetAgentId)

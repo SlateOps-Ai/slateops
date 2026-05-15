@@ -43,8 +43,9 @@ export class AgentSpriteGroup {
 
   private factory:   SpriteFactory
   private body:      PIXI.AnimatedSprite
-  private portrait:  PIXI.Container     // holds the face card
+  private portrait:  PIXI.Container
   private nameTag:   PIXI.Text
+  private roleTag:   PIXI.Text
   private bubble:    PIXI.Container | null = null
   private bubbleText: PIXI.Text | null = null
 
@@ -53,10 +54,11 @@ export class AgentSpriteGroup {
   private readonly walkSpeed = 2.8
 
   constructor(
-    agentId:    string,
-    name:       string,
+    agentId:     string,
+    name:        string,
     portraitUrl: string,
-    factory:    SpriteFactory
+    factory:     SpriteFactory,
+    roleLabel:   string = '',
   ) {
     this.agentId = agentId
     this.factory = factory
@@ -82,15 +84,31 @@ export class AgentSpriteGroup {
       style: {
         fontFamily: 'Inter, system-ui, sans-serif',
         fontSize:   11,
-        fontWeight: '500',
+        fontWeight: '600',
         fill:       0xffffff,
         align:      'center',
-        dropShadow: { color: 0x000000, blur: 4, alpha: 0.6, distance: 1 },
+        dropShadow: { color: 0x000000, blur: 4, alpha: 0.7, distance: 1 },
       },
     })
     this.nameTag.anchor.set(0.5, 0)
-    this.nameTag.y = 4
+    this.nameTag.y = 18   // top of front face label strip (dh/2 = 17)
     this.container.addChild(this.nameTag)
+
+    // Role tag — smaller, high-contrast light periwinkle against dark deskMid
+    this.roleTag = new PIXI.Text({
+      text: roleLabel,
+      style: {
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize:   9,
+        fontWeight: '500',
+        fill:       0xc8d4f8,
+        align:      'center',
+        dropShadow: { color: 0x000000, blur: 3, alpha: 0.6, distance: 1 },
+      },
+    })
+    this.roleTag.anchor.set(0.5, 0)
+    this.roleTag.y = 31   // lower portion of front face
+    this.container.addChild(this.roleTag)
   }
 
   // ── Portrait card ─────────────────────────────────────────────
@@ -151,8 +169,11 @@ export class AgentSpriteGroup {
       this.container.y = y
       this.walkTarget   = null
       this.container.scale.x = 1
-      this.playAnimation('idle_standing')
-      onComplete?.()
+      if (onComplete) {
+        onComplete()
+      } else {
+        this.playAnimation('idle_standing')
+      }
     } else {
       this.container.x += (dx / dist) * this.walkSpeed
       this.container.y += (dy / dist) * this.walkSpeed

@@ -19,7 +19,7 @@ interface DirectorContext {
 }
 
 type DirectorEvent =
-  | { type: 'INIT'; sprite: AgentSpriteGroup; scene: OfficeScene }
+  | { type: 'INIT'; sprite: AgentSpriteGroup | null; scene: OfficeScene }
   | { type: 'TASK_ASSIGNED';   taskId: string; payload: AgentEvent['payload'] }
   | { type: 'STEP_STARTED';    payload: AgentEvent['payload'] }
   | { type: 'TOOL_CALLED';     payload: AgentEvent['payload'] }
@@ -87,6 +87,7 @@ export const directorMachine = setup({
 
     walkBackToDeskIdle: ({ context }) => {
       const pos = DESK_POSITIONS[context.deskKey]
+      context.scene?.panTo(pos.x, pos.y)
       context.sprite?.walkTo(pos.x, pos.y, () => {
         context.sprite?.playAnimation('idle_seated')
         context.scene?.setLampState(context.deskKey, 'idle')

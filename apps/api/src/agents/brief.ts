@@ -5,7 +5,7 @@ import { sendWeeklyBrief, type BriefData } from '../services/email.service.js'
 export async function generateAndSendBriefs(): Promise<void> {
   // Find all users who have at least one active agent
   const users = await prisma.user.findMany({
-    where:  { agents: { some: { isActive: true } } },
+    where:  { agents: { some: { isActive: true } }, weeklyDigestEnabled: true },
     include: {
       agents: {
         where:  { isActive: true },

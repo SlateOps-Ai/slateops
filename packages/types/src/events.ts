@@ -14,6 +14,10 @@ export type ApprovalPreviewType = 'email' | 'calendar_event' | 'message' | 'docu
 
 export type ResultType = 'document' | 'email_draft' | 'calendar_event' | 'list' | 'text'
 
+export type FileFormat = 'docx' | 'xlsx' | 'pdf' | 'csv' | 'txt'
+
+export type ConfidenceBand = 'HIGH' | 'MEDIUM' | 'LOW'
+
 export interface ApprovalRequest {
   action: string
   preview: string
@@ -23,9 +27,11 @@ export interface ApprovalRequest {
 }
 
 export interface TaskResult {
-  type: ResultType
-  content: unknown
-  title: string
+  type:        ResultType
+  content:     unknown
+  title:       string
+  confidence?: ConfidenceBand
+  format?:     FileFormat
 }
 
 export interface AgentEventPayload {

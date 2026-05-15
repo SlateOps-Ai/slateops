@@ -44,6 +44,11 @@ app.setErrorHandler((err, _req, reply) => {
 })
 
 async function start() {
+  if (!process.env.WEB_URL) {
+    console.error('[FATAL] WEB_URL environment variable is not set. Approval email links will point to localhost and break in production. Set WEB_URL and restart.')
+    process.exit(1)
+  }
+
   // ── Core plugins ────────────────────────────────────────────────
   const allowedOrigins = (process.env.WEB_URL ?? 'http://localhost:3000')
     .split(',').map((s) => s.trim()).filter(Boolean)
@@ -65,15 +70,44 @@ async function start() {
   await app.register(socketPlugin as any)
 
   // ── Routes ──────────────────────────────────────────────────────
-  const { default: agentsRoute }        = await import('./routes/agents/create.js')
-  const { default: suggestionsRoute }   = await import('./routes/agents/suggestions.js')
-  const { default: memoryRoute }        = await import('./routes/agents/memory.js')
-  const { default: createTaskRoute }    = await import('./routes/tasks/create.js')
-  const { default: approveTaskRoute }   = await import('./routes/tasks/approve.js')
-  const { default: libraryRoute }       = await import('./routes/tasks/library.js')
-  const { default: integrationsRoute }  = await import('./routes/integrations/connect.js')
-  const { default: settingsRoute }      = await import('./routes/user/settings.js')
-  const { default: clerkWebhookRoute }  = await import('./routes/clerk/webhook.js')
+  const { default: agentsRoute }          = await import('./routes/agents/create.js')
+  const { default: suggestionsRoute }     = await import('./routes/agents/suggestions.js')
+  const { default: memoryRoute }          = await import('./routes/agents/memory.js')
+  const { default: agentChatRoute }       = await import('./routes/agents/chat.js')
+  const { default: agentKnowledgeRoute }  = await import('./routes/agents/knowledge.js')
+  const { default: agentSessionsRoute }   = await import('./routes/agents/sessions.js')
+  const { default: agentHealthRoute }     = await import('./routes/agents/health.js')
+  const { default: publicChatRoute }      = await import('./routes/public/chat.js')
+  const { default: createTaskRoute }      = await import('./routes/tasks/create.js')
+  const { default: approveTaskRoute }     = await import('./routes/tasks/approve.js')
+  const { default: libraryRoute }         = await import('./routes/tasks/library.js')
+  const { default: taskFeedbackRoute }    = await import('./routes/tasks/feedback.js')
+  const { default: integrationsRoute }    = await import('./routes/integrations/connect.js')
+  const { default: settingsRoute }        = await import('./routes/user/settings.js')
+  const { default: analyticsSummaryRoute }   = await import('./routes/analytics/summary.js')
+  const { default: analyticsExecutiveRoute } = await import('./routes/analytics/executive.js')
+  const { default: workflowsRoute }       = await import('./routes/workflows/workflows.js')
+  const { default: mcpCatalogRoute }      = await import('./routes/mcp/catalog.js')
+  const { default: triggerRulesRoute }        = await import('./routes/triggers/rules.js')
+  const { default: gamificationProfileRoute } = await import('./routes/gamification/profile.js')
+  const { default: inboundWebhookRoutes }     = await import('./routes/webhooks/inbound.js')
+  const { default: clerkWebhookRoute }        = await import('./routes/clerk/webhook.js')
+  const { default: billingRoute }             = await import('./routes/billing/checkout.js')
+  const { default: stripeWebhookRoute }       = await import('./routes/billing/webhook.js')
+  const { default: teamsRoute }               = await import('./routes/teams/teams.js')
+  const { default: contentPostsRoute }        = await import('./routes/content/posts.js')
+  const { default: playbooksRoute }           = await import('./routes/playbooks/playbooks.js')
+  const { default: roiRoute }                 = await import('./routes/roi/roi.js')
+  const { default: marketplaceInstallRoute }  = await import('./routes/marketplace/install.js')
+  const { default: briefingsRoute }           = await import('./routes/briefings/briefings.js')
+  const { default: stakeholderApprovalRoute } = await import('./routes/approvals/stakeholder.js')
+  const { default: collaborationFeedRoute }   = await import('./routes/collaboration/feed.js')
+  const { default: evolutionRoute }           = await import('./routes/evolution/index.js')
+  const { default: brainRoute }               = await import('./routes/brain/index.js')
+  const { default: autonomousRoute }          = await import('./routes/autonomous/index.js')
+  const { default: ceoLayerRoute }            = await import('./routes/ceo-layer/index.js')
+  const { default: onboardingComposeRoute }   = await import('./routes/onboarding/compose.js')
+  const { default: onboardingInstallRoute }   = await import('./routes/onboarding/install.js')
 
   // Webhook registered without fp() so its content-type parser override stays scoped
   await app.register(clerkWebhookRoute as any)
@@ -81,11 +115,41 @@ async function start() {
   await app.register(fp(agentsRoute as any))
   await app.register(fp(suggestionsRoute as any))
   await app.register(fp(memoryRoute as any))
+  await app.register(fp(agentChatRoute as any))
+  await app.register(fp(agentKnowledgeRoute as any))
+  await app.register(fp(agentSessionsRoute as any))
+  await app.register(fp(agentHealthRoute as any))
+  await app.register(fp(publicChatRoute as any))
   await app.register(fp(createTaskRoute as any))
   await app.register(fp(approveTaskRoute as any))
   await app.register(fp(libraryRoute as any))
+  await app.register(fp(taskFeedbackRoute as any))
   await app.register(fp(integrationsRoute as any))
   await app.register(fp(settingsRoute as any))
+  await app.register(fp(analyticsSummaryRoute as any))
+  await app.register(fp(analyticsExecutiveRoute as any))
+  await app.register(fp(workflowsRoute as any))
+  await app.register(fp(mcpCatalogRoute as any))
+  await app.register(fp(triggerRulesRoute as any))
+  await app.register(fp(gamificationProfileRoute as any))
+  await app.register(fp(billingRoute as any))
+  await app.register(fp(teamsRoute as any))
+  await app.register(fp(contentPostsRoute as any))
+  await app.register(fp(playbooksRoute as any))
+  await app.register(fp(roiRoute as any))
+  await app.register(fp(marketplaceInstallRoute as any))
+  await app.register(fp(briefingsRoute as any))
+  await app.register(fp(stakeholderApprovalRoute as any))
+  await app.register(fp(collaborationFeedRoute as any))
+  await app.register(fp(evolutionRoute as any))
+  await app.register(fp(brainRoute as any))
+  await app.register(fp(autonomousRoute as any))
+  await app.register(fp(ceoLayerRoute as any))
+  await app.register(fp(onboardingComposeRoute as any))
+  await app.register(fp(onboardingInstallRoute as any))
+  // Webhooks registered without fp() — no auth plugin needed, external services POST here
+  await app.register(inboundWebhookRoutes as any)
+  await app.register(stripeWebhookRoute as any)
 
   // ── Health ──────────────────────────────────────────────────────
   app.get('/health', async () => ({ status: 'ok', ts: new Date().toISOString() }))
@@ -93,6 +157,12 @@ async function start() {
   // ── Background jobs ──────────────────────────────────────────────
   const { prisma }    = await import('./lib/prisma.js')
   const { emitEvent } = await import('./services/events.service.js')
+
+  // Clean up any workflow runs left in a running state from a previous crash
+  await prisma.workflowRun.updateMany({
+    where:  { status: { in: ['TEST_RUNNING', 'RUNNING', 'WAITING_GATE'] } },
+    data:   { status: 'FAILED', completedAt: new Date() },
+  }).catch(() => {})
 
   setInterval(async () => {
     try {
@@ -205,6 +275,55 @@ async function start() {
     } catch (err) {
       console.error('Scheduled runs job error:', err)
     }
+  }, 60 * 1000)
+
+  // ── Scheduled social posts publisher (every 60s) ────────────────
+  setInterval(async () => {
+    try {
+      const { publishDuePosts } = await import('./services/social.service.js')
+      await publishDuePosts()
+    } catch (err) {
+      console.error('Social post publisher error:', err)
+    }
+  }, 60 * 1000)
+
+  // ── Daily Brief (08:00 UTC, checked every minute) ───────────────
+  setInterval(async () => {
+    try {
+      const now = new Date()
+      if (now.getUTCHours() === 8 && now.getUTCMinutes() === 0) {
+        const { sendDailyBrief } = await import('./services/email.service.js')
+        const users = await prisma.user.findMany({
+          where:  { agents: { some: { isActive: true } } },
+          select: { id: true, name: true, email: true, settings: true },
+        })
+        for (const user of users) {
+          try {
+            const raw = (user.settings as any) ?? {}
+            if (!raw.dailyBriefEnabled) continue
+            const lastSentAt: string | undefined = raw.lastDailyBriefAt
+            if (lastSentAt && Date.now() - new Date(lastSentAt).getTime() < 22 * 60 * 60 * 1000) continue
+            const since24h   = new Date(Date.now() - 24 * 60 * 60 * 1000)
+            const [doneTasks, pendingTasks, agents] = await Promise.all([
+              prisma.task.count({ where: { userId: user.id, status: 'COMPLETE', completedAt: { gte: since24h } } }),
+              prisma.task.count({ where: { userId: user.id, status: 'NEEDS_APPROVAL' } }),
+              prisma.agent.findMany({ where: { userId: user.id, isActive: true }, select: { name: true } }),
+            ])
+            const webUrl = process.env.WEB_URL!
+            await sendDailyBrief({
+              userName: user.name, userEmail: user.email,
+              tasksCompleted: doneTasks, pendingApprovals: pendingTasks,
+              agentNames: agents.map((a) => a.name),
+              briefUrl: `${webUrl}/daily-brief`, officeUrl: `${webUrl}/office`,
+            })
+            await prisma.user.update({
+              where: { id: user.id },
+              data:  { settings: { ...raw, lastDailyBriefAt: new Date().toISOString() } },
+            })
+          } catch (err) { console.error(`Daily brief failed for ${user.email}:`, err) }
+        }
+      }
+    } catch (err) { console.error('Daily brief job error:', err) }
   }, 60 * 1000)
 
   // ── Weekly Office Brief (Sunday 20:00, checked hourly) ──────────

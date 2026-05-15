@@ -20,7 +20,13 @@ export default fp(async function authPlugin(app: FastifyInstance) {
   app.decorateRequest('dbUserId', '')
 
   app.addHook('preHandler', async (req: FastifyRequest, reply: FastifyReply) => {
-    if (req.url === '/health' || req.url === '/api/clerk/webhook') return
+    if (
+      req.url === '/health' ||
+      req.url === '/api/clerk/webhook' ||
+      req.url.startsWith('/api/public-chat') ||
+      req.url.startsWith('/webhooks/') ||
+      req.url.startsWith('/api/billing/webhook')
+    ) return
 
     const { userId } = getAuth(req)
     if (!userId) {

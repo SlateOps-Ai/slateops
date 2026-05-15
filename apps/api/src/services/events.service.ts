@@ -10,6 +10,29 @@ export function setSocketServer(io: SocketServer): void {
 
 let _sequenceCounters = new Map<string, number>()
 
+/**
+ * Emit a transient event directly to the socket — no DB persistence.
+ * Use for high-frequency streaming updates (e.g. thought bubble tokens).
+ */
+export async function emitLive(
+  agentId: string,
+  type: string,
+  payload: AgentEvent['payload'],
+): Promise<void> {
+  const agent = await prisma.agent.findUnique({
+    where:  { id: agentId },
+    select: { user: { select: { clerkId: true } } },
+  })
+  if (agent?.user?.clerkId && _io) {
+    _io.to(`user:${agent.user.clerkId}`).emit('agent:event', {
+      type, agentId,
+      taskId: '', sequenceNumber: 0,
+      timestamp: new Date().toISOString(),
+      payload,
+    })
+  }
+}
+
 export async function emitEvent(
   agentId: string,
   partial: Omit<AgentEvent, 'sequenceNumber' | 'timestamp'>
@@ -45,6 +68,10 @@ export async function emitEvent(
   if (agent?.user?.clerkId && _io) {
     _io.to(`user:${agent.user.clerkId}`).emit('agent:event', event)
   }
+}
+
+export function emitToUser(room: string, eventName: string, data: unknown): void {
+  if (_io) _io.to(room).emit(eventName, data)
 }
 
 export async function replayEvents(taskId: string): Promise<AgentEvent[]> {

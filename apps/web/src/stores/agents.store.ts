@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Agent, AgentStatus, Task, TaskResult } from '@agentcity/types'
+import type { Agent, AgentStatus, Task, TaskResult, ConfidenceBand } from '@agentcity/types'
 import type { ActorRef } from 'xstate'
 
 interface AgentWithActor extends Agent {
@@ -17,39 +17,77 @@ export interface PendingApproval {
 }
 
 export interface CompletedTask {
-  taskId:    string
+  taskId:     string
+  agentId:    string
+  agentName:  string
+  title:      string
+  result:     TaskResult | null
+  status:     'COMPLETE' | 'FAILED'
+  error?:     string
+  confidence?: ConfidenceBand
+  userRating?: 'POSITIVE' | 'NEGATIVE' | null
+}
+
+export interface EvolutionToast {
   agentId:   string
   agentName: string
+  level:     number
   title:     string
-  result:    TaskResult | null
-  status:    'COMPLETE' | 'FAILED'
-  error?:    string
 }
 
 interface AgentsState {
-  agents:          AgentWithActor[]
-  tasks:           Task[]
-  activeTaskIds:   Record<string, string>
-  pendingApproval: PendingApproval | null
-  completedTask:   CompletedTask | null
+  agents:                 AgentWithActor[]
+  tasks:                  Task[]
+  activeTaskIds:          Record<string, string>
+  pendingApproval:        PendingApproval | null
+  completedTask:          CompletedTask | null
+  activeChatAgentId:      string | null
+  teamChatOpen:           boolean
+  selectedCanvasAgentId:  string | null
+  selectedAgentScreenPos: { x: number; y: number } | null
+  evolutionToast:         EvolutionToast | null
+  schedulerOpen:          boolean
+  schedulerAgentScope:    string | null
+  pendingFirstTask:       { agentId: string; taskText: string } | null
+  arrivingAgentIds:       string[]
 
-  setAgents:          (agents: Agent[]) => void
-  addAgent:           (agent: Agent) => void
-  updateStatus:       (agentId: string, status: AgentStatus) => void
-  setDirectorActor:   (agentId: string, actor: ActorRef<any, any>) => void
-  setActiveTask:      (agentId: string, taskId: string | null) => void
-  setPendingApproval: (approval: PendingApproval | null) => void
-  setTasks:           (tasks: Task[]) => void
-  upsertTask:         (patch: Partial<Task> & { id: string }) => void
-  setCompletedTask:   (task: CompletedTask | null) => void
+  setAgents:               (agents: Agent[]) => void
+  addAgent:                (agent: Agent) => void
+  updateStatus:            (agentId: string, status: AgentStatus) => void
+  setDirectorActor:        (agentId: string, actor: ActorRef<any, any>) => void
+  setActiveTask:           (agentId: string, taskId: string | null) => void
+  setPendingApproval:      (approval: PendingApproval | null) => void
+  setTasks:                (tasks: Task[]) => void
+  upsertTask:              (patch: Partial<Task> & { id: string }) => void
+  setCompletedTask:        (task: CompletedTask | null) => void
+  setCompletedTaskRating:  (rating: 'POSITIVE' | 'NEGATIVE') => void
+  setActiveChatAgent:      (agentId: string | null) => void
+  setTeamChatOpen:         (open: boolean) => void
+  updateAgent:             (agentId: string, patch: Partial<Agent>) => void
+  setSelectedCanvasAgent:  (id: string | null, pos?: { x: number; y: number }) => void
+  setEvolutionToast:       (toast: EvolutionToast | null) => void
+  openScheduler:           (scope?: string | null) => void
+  closeScheduler:          () => void
+  setPendingFirstTask:     (task: { agentId: string; taskText: string } | null) => void
+  setArrivingAgentIds:     (ids: string[]) => void
+  markAgentArrived:        (id: string) => void
 }
 
 export const useAgentsStore = create<AgentsState>((set) => ({
-  agents:          [],
-  tasks:           [],
-  activeTaskIds:   {},
-  pendingApproval: null,
-  completedTask:   null,
+  agents:            [],
+  tasks:             [],
+  activeTaskIds:     {},
+  pendingApproval:   null,
+  completedTask:     null,
+  activeChatAgentId:      null,
+  teamChatOpen:           false,
+  selectedCanvasAgentId:  null,
+  selectedAgentScreenPos: null,
+  evolutionToast:         null,
+  schedulerOpen:          false,
+  schedulerAgentScope:    null,
+  pendingFirstTask:       null,
+  arrivingAgentIds:       [],
 
   setAgents: (agents) => set({ agents }),
 
@@ -92,4 +130,33 @@ export const useAgentsStore = create<AgentsState>((set) => ({
     }),
 
   setCompletedTask: (task) => set({ completedTask: task }),
+
+  setCompletedTaskRating: (rating) =>
+    set((s) => s.completedTask
+      ? { completedTask: { ...s.completedTask, userRating: rating } }
+      : {}
+    ),
+
+  setActiveChatAgent: (agentId) => set({ activeChatAgentId: agentId }),
+  setTeamChatOpen:    (open)    => set({ teamChatOpen: open }),
+
+  updateAgent: (agentId, patch) =>
+    set((s) => ({
+      agents: s.agents.map((a) => (a.id === agentId ? { ...a, ...patch } : a)),
+    })),
+
+  setSelectedCanvasAgent: (id, pos) => set({
+    selectedCanvasAgentId:  id,
+    selectedAgentScreenPos: pos ?? null,
+  }),
+
+  setEvolutionToast: (toast) => set({ evolutionToast: toast }),
+
+  openScheduler:  (scope = null) => set({ schedulerOpen: true,  schedulerAgentScope: scope }),
+  closeScheduler: ()             => set({ schedulerOpen: false, schedulerAgentScope: null }),
+
+  setPendingFirstTask: (task) => set({ pendingFirstTask: task }),
+
+  setArrivingAgentIds: (ids) => set({ arrivingAgentIds: ids }),
+  markAgentArrived:    (id)  => set((s) => ({ arrivingAgentIds: s.arrivingAgentIds.filter((x) => x !== id) })),
 }))

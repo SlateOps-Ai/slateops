@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { emitEvent } from '../../services/events.service.js'
 import { prisma } from '../../lib/prisma.js'
 import type { AgentGraphState } from '../graph.js'
@@ -12,6 +13,11 @@ export async function needsApprovalNode(
 
   const expiresAt = new Date(Date.now() + APPROVAL_TTL_MS)
 
+  const auditHash = crypto
+    .createHash('sha256')
+    .update(`${pendingApprovalTool.name}|${JSON.stringify(pendingApprovalTool.input)}|${expiresAt.toISOString()}`)
+    .digest('hex')
+
   // Persist the approval request
   await prisma.approvalRequest.create({
     data: {
@@ -22,6 +28,7 @@ export async function needsApprovalNode(
       previewType:  inferPreviewType(pendingApprovalTool.name),
       isDestructive: true,
       expiresAt,
+      auditHash,
     },
   })
 

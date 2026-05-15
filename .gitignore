@@ -11,3 +11,4 @@ prisma/migrations/dev
 .vercel
 .pnpm-store
 Thumbs.db
+*.log

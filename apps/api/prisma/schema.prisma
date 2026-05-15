@@ -20,6 +20,7 @@ enum Plan {
 enum ApiKeyProvider {
   ANTHROPIC
   OPENAI
+  GEMINI
 }
 
 enum AgentRole {
@@ -28,6 +29,11 @@ enum AgentRole {
   CONTENT_WRITER
   SALES_PROSPECTOR
   OPS_COORDINATOR
+  FINANCIAL_ANALYST
+  HR_MANAGER
+  CUSTOMER_SUPPORT
+  DATA_ANALYST
+  MARKETING_STRATEGIST
 }
 
 enum AgentStatus {
@@ -84,6 +90,11 @@ enum MemoryType {
   LONG_TERM
 }
 
+enum MemorySource {
+  AUTO
+  MANUAL
+}
+
 enum IntegrationProvider {
   GMAIL
   GOOGLE_CALENDAR
@@ -107,6 +118,26 @@ enum ApprovalStatus {
   EDITED
   CANCELLED
   EXPIRED
+}
+
+enum UserRating {
+  POSITIVE
+  NEGATIVE
+}
+
+enum ConfidenceBand {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum AgentPattern {
+  COPILOT
+  TRIAGE
+  TRANSACTION
+  MONITOR
+  DECISION_SUPPORT
+  AUTONOMOUS
 }
 
 enum EventType {
@@ -135,6 +166,41 @@ enum AmbientSound {
   COFFEE_SHOP
 }
 
+enum TriggerProvider {
+  WHATSAPP
+  EMAIL
+  SLACK
+  GITHUB
+  GENERIC
+}
+
+enum TeamRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum SocialPostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  CANCELLED
+}
+
+enum SocialPlatform {
+  TWITTER
+  LINKEDIN
+  INSTAGRAM
+  FACEBOOK
+  YOUTUBE
+  TIKTOK
+  THREADS
+  PINTEREST
+}
+
 // ─── MODELS ───────────────────────────────────────────────────────
 
 model User {
@@ -147,8 +213,12 @@ model User {
   byokKey          String?
   byokProvider     ApiKeyProvider?
   creditsRemaining Int             @default(25)
-  onboardingDone   Boolean         @default(false)
-  createdAt        DateTime        @default(now())
+  stripeCustomerId String?         @unique
+  onboardingDone       Boolean         @default(false)
+  weeklyDigestEnabled  Boolean         @default(true)
+  settings             Json?
+  freeRunCredits       Int             @default(10)
+  createdAt            DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
   office           Office?
@@ -158,6 +228,15 @@ model User {
   creditLedger     CreditEntry[]
   savedCommands    SavedCommand[]
   scheduledRuns    ScheduledRun[]
+  workflows        Workflow[]
+  mcpServers       McpServer[]
+  triggerRules     TriggerRule[]
+  xpProfile        UserXp?
+  xpEvents         XpEvent[]
+  achievements     Achievement[]
+  stripePayments   StripePayment[]
+  teamMemberships  TeamMembership[]
+  scheduledPosts   ScheduledPost[]
 
   @@index([clerkId])
   @@index([email])
@@ -190,6 +269,9 @@ model Agent {
   avatarStyle        AvatarStyle
   avatarPresentation AvatarPresentation
   deskPosition       Json
+  pattern            AgentPattern       @default(AUTONOMOUS)
+  scopeConfig        Json?
+  isPublic           Boolean            @default(false)
   status             AgentStatus        @default(IDLE)
   isActive           Boolean            @default(true)
   createdAt          DateTime           @default(now())
@@ -199,9 +281,14 @@ model Agent {
   user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   tasks              Task[]
   memories           AgentMemory[]
+  knowledge          AgentKnowledge[]
   events             TaskEvent[]
   approvalRequests   ApprovalRequest[]
   savedCommands      SavedCommand[]
+  triggerRules       TriggerRule[]
+  scheduledPosts     ScheduledPost[]
+  evolution          AgentEvolution?
+  products           AgentProduct[]
 
   @@index([userId])
   @@index([officeId])
@@ -220,6 +307,8 @@ model Task {
   tokensUsed      Int             @default(0)
   costUsd         Float           @default(0)
   modelUsed       String?
+  userRating      UserRating?
+  confidence      ConfidenceBand?
   langGraphThread String?         @unique
   startedAt       DateTime?
   completedAt     DateTime?
@@ -299,20 +388,24 @@ model ToolCall {
 }
 
 model AgentMemory {
-  id         String     @id @default(uuid())
+  id         String       @id @default(uuid())
   agentId    String
   key        String
-  value      String     @db.Text
-  memoryType MemoryType @default(LONG_TERM)
+  value      String       @db.Text
+  memoryType MemoryType   @default(LONG_TERM)
+  source     MemorySource @default(MANUAL)
+  taskId     String?
+  confidence Float?
   expiresAt  DateTime?
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
 
-  agent      Agent      @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  agent      Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
   @@unique([agentId, key])
   @@index([agentId])
   @@index([expiresAt])
+  @@index([taskId])
 }
 
 model Integration {
@@ -345,6 +438,7 @@ model ApprovalRequest {
   isDestructive Boolean        @default(true)
   status        ApprovalStatus @default(PENDING)
   userEdit      Json?
+  auditHash     String?
   requestedAt   DateTime       @default(now())
   respondedAt   DateTime?
   expiresAt     DateTime
@@ -408,4 +502,370 @@ model CreditEntry {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  agentId    String?
+  taskId     String?
+  action     String
+  entityType String
+  payload    Json
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([agentId])
+  @@index([taskId])
+  @@index([createdAt])
+}
+
+model AgentKnowledge {
+  id        String   @id @default(uuid())
+  agentId   String
+  title     String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+}
+
+model Workflow {
+  id        String        @id @default(uuid())
+  userId    String
+  name      String
+  steps     Json          // Array<{ agentId: string; instruction: string; label: string }>
+  status    String        @default("ACTIVE")
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  runs      WorkflowRun[]
+
+  @@index([userId])
+}
+
+model WorkflowRun {
+  id          String    @id @default(uuid())
+  workflowId  String
+  userId      String
+  status      String    @default("RUNNING")
+  stepOutputs Json      @default("[]")
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  workflow    Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+  @@index([userId])
+}
+
+model McpServer {
+  id           String    @id @default(uuid())
+  userId       String
+  name         String
+  description  String?
+  url          String
+  transport    String    @default("http")
+  authHeader   String?
+  toolCount    Int       @default(0)
+  tools        Json      @default("[]")
+  isActive     Boolean   @default(true)
+  lastTestedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model TriggerRule {
+  id             String          @id @default(uuid())
+  userId         String
+  agentId        String
+  provider       TriggerProvider
+  label          String
+  webhookSecret  String          @unique @default(uuid())
+  promptTemplate String          @db.Text
+  filterField    String?         // 'from' | 'subject' | 'body' | 'channel' | 'event' | 'repo'
+  filterOp       String?         // 'contains' | 'equals' | 'startsWith' | 'any'
+  filterValue    String?
+  isActive       Boolean         @default(true)
+  fireCount      Int             @default(0)
+  lastFiredAt    DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agent          Agent           @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  events         InboundEvent[]
+
+  @@index([userId])
+  @@index([webhookSecret])
+  @@index([agentId])
+}
+
+model InboundEvent {
+  id         String       @id @default(uuid())
+  ruleId     String
+  taskId     String?
+  provider   String
+  senderInfo String?
+  summary    String?
+  matched    Boolean      @default(true)
+  rawPayload Json
+  createdAt  DateTime     @default(now())
+
+  rule       TriggerRule  @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId])
+  @@index([createdAt])
+}
+
+model UserXp {
+  id             String    @id @default(uuid())
+  userId         String    @unique
+  totalXp        Int       @default(0)
+  level          Int       @default(1)
+  streakDays     Int       @default(0)
+  lastActiveDate String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  xpEvents       XpEvent[]
+}
+
+model XpEvent {
+  id        String   @id @default(uuid())
+  userId    String
+  userXpId  String
+  xp        Int
+  reason    String
+  label     String
+  refId     String?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userXp    UserXp   @relation(fields: [userXpId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Achievement {
+  id         String   @id @default(uuid())
+  userId     String
+  key        String
+  unlockedAt DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId])
+}
+
+model StripePayment {
+  id              String   @id @default(uuid())
+  userId          String
+  stripeSessionId String   @unique
+  stripePaymentId String?
+  credits         Int
+  amountUsd       Float
+  status          String   @default("PENDING") // PENDING | COMPLETE | FAILED
+  createdAt       DateTime @default(now())
+  completedAt     DateTime?
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([stripeSessionId])
+}
+
+model Team {
+  id          String           @id @default(uuid())
+  name        String
+  slug        String           @unique
+  ownerId     String
+  avatarUrl   String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  memberships TeamMembership[]
+  invites     TeamInvite[]
+
+  @@index([ownerId])
+}
+
+model TeamMembership {
+  id        String   @id @default(uuid())
+  teamId    String
+  userId    String
+  role      TeamRole @default(MEMBER)
+  joinedAt  DateTime @default(now())
+
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([teamId])
+  @@index([userId])
+}
+
+model TeamInvite {
+  id        String    @id @default(uuid())
+  teamId    String
+  email     String
+  role      TeamRole  @default(MEMBER)
+  token     String    @unique @default(uuid())
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  team      Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, email])
+  @@index([token])
+  @@index([teamId])
+}
+
+model ScheduledPost {
+  id          String           @id @default(uuid())
+  userId      String
+  agentId     String?
+  platforms   String[]
+  content     String           @db.Text
+  mediaUrls   String[]         @default([])
+  scheduledAt DateTime
+  publishedAt DateTime?
+  status      SocialPostStatus @default(SCHEDULED)
+  failReason  String?
+  results     Json?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agent       Agent?           @relation(fields: [agentId], references: [id])
+
+  @@index([userId, scheduledAt])
+  @@index([status, scheduledAt])
+}
+
+// ─── MOAT FEATURES ────────────────────────────────────────────────
+
+model AgentEvolution {
+  id            String    @id @default(uuid())
+  agentId       String    @unique
+  userId        String
+  level         Int       @default(1)
+  xp            Int       @default(0)
+  title         String    @default("Junior")
+  skills        Json      @default("[]")
+  tasksComplete Int       @default(0)
+  lastLevelUpAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  agent         Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model BrainNode {
+  id             String   @id @default(uuid())
+  userId         String
+  topic          String
+  content        String   @db.Text
+  category       String   @default("learning")
+  importance     Int      @default(1)
+  linkedTaskIds  String[] @default([])
+  linkedAgentIds String[] @default([])
+  accessCount    Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+  @@index([category])
+}
+
+model BusinessObjective {
+  id           String   @id @default(uuid())
+  userId       String
+  title        String
+  description  String?
+  metric       String
+  targetValue  Float
+  currentValue Float    @default(0)
+  period       String   @default("monthly")
+  dueAt        DateTime
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@index([isActive])
+}
+
+model AutonomousConfig {
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  enabled     Boolean   @default(false)
+  briefTime   String    @default("08:00")
+  lastBriefAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model AgentChemistry {
+  id             String    @id @default(uuid())
+  userId         String
+  agentId1       String
+  agentId2       String
+  sharedTasks    Int       @default(0)
+  successCount   Int       @default(0)
+  chemistryScore Float     @default(0)
+  lastCollabAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([agentId1, agentId2])
+  @@index([userId])
+}
+
+model AgentProduct {
+  id          String         @id @default(uuid())
+  agentId     String
+  userId      String
+  name        String
+  tagline     String
+  description String         @db.Text
+  category    String         @default("general")
+  priceUsd    Float          @default(0)
+  isPublished Boolean        @default(false)
+  installCount Int           @default(0)
+  rating      Float?
+  ratingCount Int            @default(0)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  agent       Agent          @relation(fields: [agentId], references: [id])
+  installs    ProductInstall[]
+
+  @@index([userId])
+  @@index([isPublished])
+}
+
+model ProductInstall {
+  id          String       @id @default(uuid())
+  productId   String
+  buyerUserId String
+  installedAt DateTime     @default(now())
+
+  product     AgentProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, buyerUserId])
+  @@index([buyerUserId])
 }

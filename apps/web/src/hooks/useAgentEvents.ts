@@ -7,10 +7,11 @@ import type { AgentEvent } from '@agentcity/types'
 import { connectSocket, onAgentEvent } from '@/lib/socket'
 import { directorMachine } from '@/lib/machines/director.machine'
 import { useAgentsStore } from '@/stores/agents.store'
+import type { EvolutionToast } from '@/stores/agents.store'
+import { useGamificationStore } from '@/stores/gamification.store'
+import type { GamificationUpdate } from '@/stores/gamification.store'
 import type { OfficeScene } from '@/lib/pixi/scene'
 import { agentDeskKey } from '@/lib/pixi/scene'
-import { AgentSpriteGroup } from '@/lib/pixi/agent-sprite'
-import { SpriteFactory } from '@/lib/pixi/sprite-factory'
 
 export function useAgentEvents(scene: OfficeScene | null) {
   const { getToken } = useAuth()
@@ -22,9 +23,11 @@ export function useAgentEvents(scene: OfficeScene | null) {
     setPendingApproval,
     upsertTask,
     setCompletedTask,
+    setEvolutionToast,
   } = useAgentsStore()
 
-  // Scoped to this mount — cleared on unmount so re-navigation rebuilds actors+sprites
+  const applyGamificationUpdate = useGamificationStore((s) => s.applyUpdate)
+
   const actorRegistry = useRef<Map<string, ReturnType<typeof createActor>>>(new Map())
 
   useEffect(() => {
@@ -36,8 +39,6 @@ export function useAgentEvents(scene: OfficeScene | null) {
 
       connectSocket(token)
 
-      const factory = new SpriteFactory(scene.app.renderer as any)
-
       agents.forEach((agent, index) => {
         if (actorRegistry.current.has(agent.id)) return
 
@@ -48,15 +49,21 @@ export function useAgentEvents(scene: OfficeScene | null) {
         })
         actor.start()
 
-        const sprite = new AgentSpriteGroup(agent.id, agent.name, agent.avatarUrl, factory)
-        scene.layers.agents.addChild(sprite.container)
-        sprite.setPosition(80, 620)
-
-        actor.send({ type: 'INIT', sprite, scene })
-        scene.app.ticker.add(() => sprite.tick())
+        // No pixi sprite — agent is represented by the React AgentAvatarDock
+        actor.send({ type: 'INIT', sprite: null, scene })
 
         actorRegistry.current.set(agent.id, actor)
         setDirectorActor(agent.id, actor as any)
+      })
+
+      // Gamification real-time updates
+      const socket = (await import('@/lib/socket')).getSocket()
+      socket.on('gamification:update', (update: GamificationUpdate) => {
+        applyGamificationUpdate(update)
+      })
+      socket.on('agent:evolution', (toast: EvolutionToast) => {
+        setEvolutionToast(toast)
+        setTimeout(() => setEvolutionToast(null), 5000)
       })
 
       unsubscribe = onAgentEvent((event: AgentEvent) => {
@@ -105,12 +112,14 @@ export function useAgentEvents(scene: OfficeScene | null) {
             setPendingApproval(null)
             upsertTask({ id: event.taskId, agentId: event.agentId, status: 'COMPLETE' })
             setCompletedTask({
-              taskId:    event.taskId,
-              agentId:   event.agentId,
-              agentName: agentObj?.name ?? 'Agent',
-              title:     (event.payload.result?.title ?? 'Task complete'),
-              result:    event.payload.result ?? null,
-              status:    'COMPLETE',
+              taskId:     event.taskId,
+              agentId:    event.agentId,
+              agentName:  agentObj?.name ?? 'Agent',
+              title:      (event.payload.result?.title ?? 'Task complete'),
+              result:     event.payload.result ?? null,
+              status:     'COMPLETE',
+              confidence: event.payload.result?.confidence,
+              userRating: null,
             })
             actor.send({ type: 'TASK_COMPLETE', payload: event.payload })
             break
@@ -141,6 +150,10 @@ export function useAgentEvents(scene: OfficeScene | null) {
     bootstrap()
     return () => {
       unsubscribe?.()
+      import('@/lib/socket').then(({ getSocket }) => {
+        getSocket().off('gamification:update')
+        getSocket().off('agent:evolution')
+      })
       actorRegistry.current.forEach((actor) => actor.stop())
       actorRegistry.current.clear()
     }
