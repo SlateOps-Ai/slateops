@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bell, X, ChevronRight, Lightbulb, AlertTriangle, TrendingUp, Megaphone, CheckCircle2 } from 'lucide-react'
 import { useAuthFetch } from '@/hooks/useAuthFetch'
+import { useAgentsStore } from '@/stores/agents.store'
+import type { AgentNotification } from '@/stores/agents.store'
 import { cn } from '@/lib/utils'
 
 interface Briefing {
@@ -28,10 +30,12 @@ const TYPE_STYLES: Record<Briefing['type'], { icon: React.ReactNode; color: stri
 export function ProactiveBriefings() {
   const authFetch  = useAuthFetch()
   const API        = process.env.NEXT_PUBLIC_API_URL
+  const pushAgentNotification = useAgentsStore((s) => s.pushAgentNotification)
 
   const [briefings, setBriefings]   = useState<Briefing[]>([])
   const [open,      setOpen]        = useState(false)
   const [expanded,  setExpanded]    = useState<string | null>(null)
+  const seenIdsRef = useState(() => new Set<string>())[0]
 
   const unread = briefings.filter((b) => !b.read).length
 
@@ -49,12 +53,23 @@ export function ProactiveBriefings() {
     return () => clearInterval(t)
   }, [load])
 
-  // Show bell toast when new unread arrives
-  const [toastBriefing, setToastBriefing] = useState<Briefing | null>(null)
+  // Push each newly seen unread briefing as a speech bubble next to that agent's avatar.
+  // (Replaces the old corner toast; the bell + dropdown remains as the aggregate view.)
   useEffect(() => {
-    const newest = briefings.find((b) => !b.read)
-    if (newest && !open) setToastBriefing(newest)
-  }, [briefings, open])
+    for (const b of briefings) {
+      if (b.read) continue
+      if (seenIdsRef.has(b.id)) continue
+      seenIdsRef.add(b.id)
+      const notif: AgentNotification = {
+        id:        b.id,
+        type:      b.type,
+        headline:  b.headline,
+        body:      b.body,
+        createdAt: b.createdAt,
+      }
+      pushAgentNotification(b.agentId, notif)
+    }
+  }, [briefings, pushAgentNotification, seenIdsRef])
 
   async function markRead(id: string) {
     setBriefings((prev) => prev.map((b) => b.id === id ? { ...b, read: true } : b))
@@ -76,7 +91,7 @@ export function ProactiveBriefings() {
       {/* Bell button — always visible in top-right area */}
       <div className="absolute top-4 right-[135px] z-40">
         <button
-          onClick={() => { setOpen((v) => !v); setToastBriefing(null) }}
+          onClick={() => setOpen((v) => !v)}
           className={cn(
             'relative p-2 rounded-xl border transition-all',
             open
@@ -181,35 +196,6 @@ export function ProactiveBriefings() {
         </AnimatePresence>
       </div>
 
-      {/* Pop-up toast for newest unread */}
-      <AnimatePresence>
-        {toastBriefing && !open && (
-          <motion.div
-            initial={{ opacity: 0, y: 16, x: 16 }}
-            animate={{ opacity: 1, y: 0, x: 0 }}
-            exit={{ opacity: 0, y: 16, x: 16 }}
-            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute bottom-20 right-4 z-50 w-72 rounded-xl border border-white/10 bg-panel-bg shadow-2xl backdrop-blur-sm overflow-hidden"
-          >
-            <div className="flex items-start gap-3 p-3">
-              <img src={toastBriefing.agentAvatar} alt={toastBriefing.agentName} className="w-8 h-8 rounded-full object-cover shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <p className="text-[9px] text-panel-muted">{toastBriefing.agentName} · just now</p>
-                <p className="text-white text-[11px] font-medium mt-0.5 leading-snug">{toastBriefing.headline}</p>
-              </div>
-              <button onClick={() => setToastBriefing(null)} className="text-panel-muted hover:text-white shrink-0 transition-colors">
-                <X size={11} />
-              </button>
-            </div>
-            <button
-              onClick={() => { setOpen(true); setToastBriefing(null) }}
-              className="w-full px-3 py-2 border-t border-white/[0.07] text-[10px] text-panel-accent hover:bg-white/[0.04] transition-colors text-left"
-            >
-              View all briefings →
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </>
   )
 }

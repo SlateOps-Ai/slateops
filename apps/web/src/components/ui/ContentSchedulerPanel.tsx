@@ -123,6 +123,8 @@ export function ContentSchedulerPanel({ onClose }: Props) {
   const { offset, onMouseDown: onDragStart } = useDraggable()
   const agentScope    = useAgentsStore((s) => s.schedulerAgentScope)
   const scopedAgent   = useAgentsStore((s) => s.agents.find((a) => a.id === agentScope))
+  const pendingDraft  = useAgentsStore((s) => s.pendingDraft)
+  const setPendingDraft = useAgentsStore((s) => s.setPendingDraft)
 
   // data
   const [posts,    setPosts]    = useState<ScheduledPost[]>([])
@@ -162,6 +164,22 @@ export function ContentSchedulerPanel({ onClose }: Props) {
   }, [authFetch, API, agentScope])
 
   useEffect(() => { loadData() }, [loadData])
+
+  // Pre-fill compose mode from a draftSocialPost tool call in chat
+  useEffect(() => {
+    if (!pendingDraft) return
+    setComposing(true)
+    setContent(pendingDraft.content)
+    setPlatforms([pendingDraft.platform as Platform])
+    if (pendingDraft.suggestedAt) {
+      const d = new Date(pendingDraft.suggestedAt)
+      if (!isNaN(d.getTime())) {
+        setScheduledAt(d.toISOString().slice(0, 16))
+        setScheduleMode('later')
+      }
+    }
+    setPendingDraft(null)
+  }, [pendingDraft, setPendingDraft])
 
   const submitPost = async () => {
     if (!content.trim() || platforms.length === 0) return

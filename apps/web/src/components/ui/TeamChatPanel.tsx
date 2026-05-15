@@ -17,7 +17,8 @@ import { AGENT_ROLE_LABELS } from '@agentcity/types'
 import type { AgentStatus } from '@agentcity/types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-interface Message { role: 'user' | 'assistant'; content: string }
+interface DraftPost { content: string; platform: string; suggestedAt?: string }
+interface Message { role: 'user' | 'assistant'; content: string; draftPost?: DraftPost | null }
 interface PromptSuggestion { command: string; rationale: string }
 interface CreditError {
   error: string; detail: string; byok: boolean
@@ -384,7 +385,7 @@ function AgentChatArea({
         body: JSON.stringify({ message: userMsg, history: (threads[agentId] ?? []).slice(-10) }),
       })
       const data = await res.json()
-      addMessage(agentId, { role: 'assistant', content: data.reply ?? 'No response.' })
+      addMessage(agentId, { role: 'assistant', content: data.reply ?? 'No response.', draftPost: data.draftPost ?? null })
       if (data.taskId) setLastTaskIds((p) => ({ ...p, [agentId]: data.taskId }))
     } catch {
       addMessage(agentId, { role: 'assistant', content: 'Something went wrong. Please try again.' })
@@ -485,6 +486,33 @@ function AgentChatArea({
                 m.role === 'user' ? 'bg-panel-accent/20 text-white rounded-br-sm' : 'bg-white/5 border border-white/10 text-white rounded-bl-sm')}>
                 {m.content}
               </div>
+
+              {/* Inline draft-post card with one-click schedule */}
+              {m.role === 'assistant' && m.draftPost && (
+                <div className="max-w-[78%] mt-1 rounded-xl border border-panel-accent/30 bg-panel-accent/[0.06] p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Calendar size={11} className="text-panel-accent" />
+                    <span className="text-[10px] uppercase tracking-widest text-panel-accent font-semibold">
+                      Draft for {m.draftPost.platform}
+                    </span>
+                  </div>
+                  <p className="text-white/85 text-[12px] leading-relaxed whitespace-pre-wrap">{m.draftPost.content}</p>
+                  <button
+                    onClick={() => {
+                      useAgentsStore.getState().setPendingDraft({
+                        content:     m.draftPost!.content,
+                        platform:    m.draftPost!.platform,
+                        suggestedAt: m.draftPost!.suggestedAt,
+                      })
+                      useAgentsStore.getState().openScheduler(agentId)
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-panel-accent text-white text-[11px] font-semibold hover:bg-panel-accent/85 transition-colors"
+                  >
+                    <Calendar size={11} />
+                    Schedule post
+                  </button>
+                </div>
+              )}
               <div className={cn('flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity', m.role === 'user' ? 'flex-row-reverse' : 'flex-row')}>
                 <button onClick={() => copy(m.content, i)} className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white/5 border border-white/8 text-panel-muted hover:text-white hover:bg-white/10 transition-all text-[10px]">
                   {copiedId === i ? <><Check size={10} className="text-lamp-done" /> Copied</> : <><Copy size={10} /> Copy</>}

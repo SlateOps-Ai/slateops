@@ -50,6 +50,8 @@ interface AgentsState {
   schedulerAgentScope:    string | null
   pendingFirstTask:       { agentId: string; taskText: string } | null
   arrivingAgentIds:       string[]
+  agentNotifications:     Record<string, AgentNotification | null>
+  pendingDraft:           { content: string; platform: string; suggestedAt?: string } | null
 
   setAgents:               (agents: Agent[]) => void
   addAgent:                (agent: Agent) => void
@@ -71,6 +73,17 @@ interface AgentsState {
   setPendingFirstTask:     (task: { agentId: string; taskText: string } | null) => void
   setArrivingAgentIds:     (ids: string[]) => void
   markAgentArrived:        (id: string) => void
+  pushAgentNotification:   (agentId: string, notif: AgentNotification) => void
+  dismissAgentNotification:(agentId: string) => void
+  setPendingDraft:         (draft: { content: string; platform: string; suggestedAt?: string } | null) => void
+}
+
+export interface AgentNotification {
+  id:        string
+  type:      'insight' | 'alert' | 'opportunity' | 'update'
+  headline:  string
+  body?:     string
+  createdAt: string
 }
 
 export const useAgentsStore = create<AgentsState>((set) => ({
@@ -88,6 +101,8 @@ export const useAgentsStore = create<AgentsState>((set) => ({
   schedulerAgentScope:    null,
   pendingFirstTask:       null,
   arrivingAgentIds:       [],
+  agentNotifications:     {},
+  pendingDraft:           null,
 
   setAgents: (agents) => set({ agents }),
 
@@ -159,4 +174,8 @@ export const useAgentsStore = create<AgentsState>((set) => ({
 
   setArrivingAgentIds: (ids) => set({ arrivingAgentIds: ids }),
   markAgentArrived:    (id)  => set((s) => ({ arrivingAgentIds: s.arrivingAgentIds.filter((x) => x !== id) })),
+
+  pushAgentNotification:    (agentId, notif) => set((s) => ({ agentNotifications: { ...s.agentNotifications, [agentId]: notif } })),
+  dismissAgentNotification: (agentId)        => set((s) => ({ agentNotifications: { ...s.agentNotifications, [agentId]: null } })),
+  setPendingDraft:          (draft)           => set({ pendingDraft: draft }),
 }))

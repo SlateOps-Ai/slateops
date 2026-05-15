@@ -1,12 +1,24 @@
 'use client'
 
-import { motion } from 'framer-motion'
+import { useEffect, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { X, Lightbulb, AlertTriangle, TrendingUp, Megaphone } from 'lucide-react'
 import { useAgentsStore } from '@/stores/agents.store'
+import type { AgentNotification } from '@/stores/agents.store'
 import { cn } from '@/lib/utils'
 import { AGENT_ROLE_LABELS } from '@agentcity/types'
 import type { AgentStatus } from '@agentcity/types'
 
 const DOOR_PIXI = { x: 80, y: 680 }
+
+const NOTIF_AUTO_DISMISS_MS = 14_000
+
+const NOTIF_ICON: Record<AgentNotification['type'], React.ReactNode> = {
+  insight:     <Lightbulb     size={11} className="text-amber-400" />,
+  alert:       <AlertTriangle size={11} className="text-red-400" />,
+  opportunity: <TrendingUp    size={11} className="text-emerald-400" />,
+  update:      <Megaphone     size={11} className="text-panel-accent" />,
+}
 
 const STATUS_DOT: Record<AgentStatus, string> = {
   IDLE:    'bg-lamp-idle',
@@ -47,6 +59,23 @@ export function AgentAvatarDock() {
   const setTeamChatOpen        = useAgentsStore((s) => s.setTeamChatOpen)
   const arrivingAgentIds       = useAgentsStore((s) => s.arrivingAgentIds)
   const markAgentArrived       = useAgentsStore((s) => s.markAgentArrived)
+  const agentNotifications     = useAgentsStore((s) => s.agentNotifications)
+  const dismissAgentNotification = useAgentsStore((s) => s.dismissAgentNotification)
+
+  // Auto-dismiss notifications after NOTIF_AUTO_DISMISS_MS. One timer per (agentId, notif.id).
+  const scheduledRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    for (const [agentId, n] of Object.entries(agentNotifications)) {
+      if (!n) continue
+      const key = `${agentId}:${n.id}`
+      if (scheduledRef.current.has(key)) continue
+      scheduledRef.current.add(key)
+      setTimeout(() => {
+        dismissAgentNotification(agentId)
+        scheduledRef.current.delete(key)
+      }, NOTIF_AUTO_DISMISS_MS)
+    }
+  }, [agentNotifications, dismissAgentNotification])
 
   if (!agents.length) return null
 
@@ -96,6 +125,40 @@ export function AgentAvatarDock() {
               onAnimationComplete: () => markAgentArrived(agent.id),
             })}
           >
+            {/* Speech bubble for this agent's most recent notification */}
+            <AnimatePresence>
+              {agentNotifications[agent.id] && (
+                <motion.div
+                  key={agentNotifications[agent.id]!.id}
+                  initial={{ opacity: 0, y: 6, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.96 }}
+                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute z-30 left-1/2 -translate-x-1/2 bottom-full mb-3 w-[230px] rounded-xl border border-white/10 bg-panel-bg shadow-2xl backdrop-blur-sm cursor-default"
+                >
+                  <div className="flex items-start gap-2 p-2.5">
+                    <span className="mt-0.5 shrink-0">{NOTIF_ICON[agentNotifications[agent.id]!.type]}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[8px] text-panel-muted">{agent.name} · just now</p>
+                      <p className="text-white text-[10px] font-medium mt-0.5 leading-snug">
+                        {agentNotifications[agent.id]!.headline}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => dismissAgentNotification(agent.id)}
+                      className="text-panel-muted hover:text-white shrink-0 transition-colors"
+                    >
+                      <X size={10} />
+                    </button>
+                  </div>
+                  {/* Tail pointing down to the avatar */}
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-panel-bg" />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Continuous idle bounce — inner motion layer doesn't fight the outer arrival translate */}
             <motion.div
               className="flex flex-col items-center gap-1"
