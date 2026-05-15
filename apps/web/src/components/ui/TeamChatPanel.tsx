@@ -610,8 +610,8 @@ export function TeamChatPanel() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          style={{ transform: `translate(${dragOffset.x}px, ${dragOffset.y}px)` }}
-          className="fixed top-[60px] bottom-4 right-4 z-50 w-[520px] flex flex-col rounded-2xl border border-white/10 bg-panel-bg shadow-2xl overflow-hidden"
+          style={{ transform: `translate(calc(-50% + ${dragOffset.x}px), ${dragOffset.y}px)` }}
+          className="fixed top-[60px] bottom-4 left-1/2 z-50 w-[820px] max-w-[calc(100vw-2rem)] flex flex-col rounded-2xl border border-white/10 bg-panel-bg shadow-2xl overflow-hidden"
         >
           {/* ── Panel-level drag strip + window controls ─────────────────── */}
           <div
@@ -654,19 +654,93 @@ export function TeamChatPanel() {
             </button>
           </div>
 
-          {/* ── Mode content ─────────────────────────────────────────────── */}
-          {isCeoMode
-            ? <CeoCommandPanel onSelectAgent={(id) => setActiveChatAgent(id)} />
-            : <AgentChatArea
-                agentId={activeChatAgentId!}
-                threads={threads}
-                addMessage={addMessage}
-                lastTaskIds={lastTaskIds}
-                setLastTaskIds={setLastTaskIds}
-                rated={rated}
-                setRated={setRated}
-              />
-          }
+          {/* ── Body: left agent sidebar + right mode content ─────────── */}
+          <div className="flex flex-1 min-h-0">
+
+            {/* Left sidebar — agent picker */}
+            <div className="w-[180px] shrink-0 border-r border-white/[0.07] flex flex-col">
+              <div className="flex-1 overflow-y-auto scrollbar-none p-2 space-y-1">
+
+                {/* CEO entry */}
+                <button
+                  onClick={() => setActiveChatAgent(null)}
+                  className={cn(
+                    'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition-all border',
+                    isCeoMode
+                      ? 'bg-panel-accent/15 border-panel-accent/25'
+                      : 'hover:bg-white/[0.05] border-transparent',
+                  )}
+                >
+                  <div className="relative shrink-0">
+                    {ceoAvatar
+                      ? <img src={ceoAvatar} alt="CEO" className="w-8 h-8 rounded-full object-cover ring-1 ring-panel-accent/40" />
+                      : <div className="w-8 h-8 rounded-full bg-gradient-to-br from-panel-accent to-purple-500 flex items-center justify-center text-white text-[10px] font-black">CEO</div>
+                    }
+                    <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-panel-bg bg-emerald-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={cn('text-xs font-semibold truncate', isCeoMode ? 'text-white' : 'text-white/70')}>{ceoName}</p>
+                    <p className="text-[9px] text-panel-accent truncate">Command Center</p>
+                  </div>
+                </button>
+
+                <div className="border-t border-white/[0.05] my-1" />
+
+                {/* Agent entries */}
+                {agents.map((agent) => {
+                  const isActive  = activeChatAgentId === agent.id
+                  const hasThread = (threads[agent.id]?.length ?? 0) > 0
+                  const agentRole = AGENT_ROLE_LABELS[agent.role as keyof typeof AGENT_ROLE_LABELS] ?? agent.role
+
+                  return (
+                    <button
+                      key={agent.id}
+                      onClick={() => setActiveChatAgent(agent.id)}
+                      className={cn(
+                        'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition-all border',
+                        isActive ? 'bg-panel-accent/15 border-panel-accent/25' : 'hover:bg-white/[0.05] border-transparent',
+                      )}
+                    >
+                      <div className="relative shrink-0">
+                        <img src={agent.avatarUrl} alt={agent.name} className="w-8 h-8 rounded-full object-cover" />
+                        <span className={cn('absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-panel-bg', STATUS_DOT[agent.status])} />
+                        {agent.status === 'WORKING' && (
+                          <motion.span
+                            className="absolute inset-[-2px] rounded-full border border-lamp-working/60"
+                            animate={{ scale: [1, 1.3, 1], opacity: [0.6, 0, 0.6] }}
+                            transition={{ duration: 1.8, repeat: Infinity }}
+                          />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={cn('text-xs font-semibold truncate', isActive ? 'text-white' : 'text-white/70')}>{agent.name}</p>
+                        <p className="text-[9px] text-panel-muted truncate">{agentRole}</p>
+                      </div>
+                      {hasThread && !isActive && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-panel-accent shrink-0" />
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Right side — mode-specific content */}
+            <div className="flex-1 min-w-0 flex flex-col">
+              {isCeoMode
+                ? <CeoCommandPanel onSelectAgent={(id) => setActiveChatAgent(id)} />
+                : <AgentChatArea
+                    agentId={activeChatAgentId!}
+                    threads={threads}
+                    addMessage={addMessage}
+                    lastTaskIds={lastTaskIds}
+                    setLastTaskIds={setLastTaskIds}
+                    rated={rated}
+                    setRated={setRated}
+                  />
+              }
+            </div>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
