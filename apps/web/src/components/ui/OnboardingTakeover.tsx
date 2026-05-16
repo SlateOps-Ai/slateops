@@ -158,8 +158,8 @@ export function OnboardingTakeover({ onComplete, onSkip }: Props) {
               a.name === firstComposed.name && a.role === firstComposed.role)
           : data.agents[0]
 
-        // Trigger the walk-in animation for all newly installed agents.
-        // Ordered by composedAgents (the takeover preview order) so stagger matches the user's expectation.
+        // Still mark them as "arriving" so that if the user closes the chat
+        // panel right after onboarding, the canvas walk-in plays for them.
         const newAgentIds: string[] = team
           .map((c) => data.agents.find((a: { name: string; role: string }) =>
             a.name === c.name && a.role === c.role)?.id)
@@ -168,15 +168,12 @@ export function OnboardingTakeover({ onComplete, onSkip }: Props) {
 
         if (firstAgent && firstComposed?.firstTask) {
           setPendingFirstTask({ agentId: firstAgent.id, taskText: firstComposed.firstTask })
-
-          // Open Team Chat AFTER the walk-in animation completes so the user sees the spectacle first.
-          // Stagger: 0.7s per agent, last agent walks for 1.4s, +0.4s buffer.
-          const animDurationMs = (newAgentIds.length - 1) * 700 + 1400 + 400
-          setTimeout(() => {
-            setActiveChatAgent(firstAgent.id)
-            setTeamChatOpen(true)
-          }, animDurationMs)
         }
+
+        // Open the chat panel immediately — the picker's own entrance
+        // animation handles the "agents appearing" moment.
+        if (firstAgent) setActiveChatAgent(firstAgent.id)
+        setTeamChatOpen(true)
       }
       onComplete()
     } catch (err) {

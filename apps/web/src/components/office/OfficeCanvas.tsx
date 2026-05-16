@@ -77,6 +77,7 @@ export function OfficeCanvas() {
   const schedulerStoreOpen = useAgentsStore((s) => s.schedulerOpen)
   const closeScheduler  = useAgentsStore((s) => s.closeScheduler)
   const agentsCount     = useAgentsStore((s) => s.agents.length)
+  const teamChatOpen    = useAgentsStore((s) => s.teamChatOpen)
   const authFetch  = useAuthFetch()
 
   // Clear first-run lock once any agent shows up (e.g. after onboarding install)
@@ -235,8 +236,10 @@ export function OfficeCanvas() {
             onOpenMarketplace={() => { setMarketplaceOpen(true); setBillingOpen(false); setConnectionsOpen(false) }}
             onOpenConnections={() => { setConnectionsOpen(true); setBillingOpen(false); setMarketplaceOpen(false) }}
           />
-          <AgentAvatarDock />
-          <ConnectionsShelf onOpenConnections={() => { setConnectionsOpen(true); setBillingOpen(false); setMarketplaceOpen(false) }} />
+          {/* Canvas avatar dock and shelf only show when the chat panel is closed —
+              the chat panel owns the picker/grant surface while open. */}
+          {!teamChatOpen && <AgentAvatarDock />}
+          {!teamChatOpen && <ConnectionsShelf onOpenConnections={() => { setConnectionsOpen(true); setBillingOpen(false); setMarketplaceOpen(false) }} />}
           <ApprovalToast />
           <WelcomeBackPanel />
           <TaskResultPanel />

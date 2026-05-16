@@ -14,8 +14,8 @@ import { useAuthFetch } from '@/hooks/useAuthFetch'
 import { cn } from '@/lib/utils'
 import { AgentActionsHeader } from '@/components/ui/AgentActionsHeader'
 import { SlateText } from '@/components/ui/SlateText'
-import { AGENT_ROLE_LABELS } from '@agentcity/types'
-import type { AgentStatus } from '@agentcity/types'
+import { AGENT_ROLE_LABELS, findCatalogApp, canRoleUseApp } from '@agentcity/types'
+import type { AgentStatus, AgentRole } from '@agentcity/types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface DraftPost { content: string; platform: string; suggestedAt?: string }
@@ -34,6 +34,10 @@ type CmdState  = 'idle' | 'loading' | 'clarifying' | 'error'
 const STATUS_DOT: Record<AgentStatus, string> = {
   IDLE: 'bg-lamp-idle', WORKING: 'bg-lamp-working',
   BLOCKED: 'bg-lamp-blocked', OFFLINE: 'bg-white/20',
+}
+const STATUS_LABEL: Record<AgentStatus, string> = {
+  IDLE: 'Idle', WORKING: 'Working…',
+  BLOCKED: 'Needs input', OFFLINE: 'Offline',
 }
 const THINKING_STEPS = ['Routing', 'Analysing', 'Delegating', 'Orchestrating', 'Dispatching']
 
@@ -79,8 +83,7 @@ function useAgentPrompts(agentId: string | null) {
 }
 
 // ── CEO Command Panel (replaces CommandBar) ───────────────────────────────────
-function CeoCommandPanel({ onSelectAgent, onHeaderMouseDown }: { onSelectAgent: (id: string) => void; onHeaderMouseDown?: (e: React.MouseEvent) => void }) {
-  const agents     = useAgentsStore((s) => s.agents)
+function CeoCommandPanel({ onHeaderMouseDown: _onHeaderMouseDown }: { onSelectAgent?: (id: string) => void; onHeaderMouseDown?: (e: React.MouseEvent) => void }) {
   const upsertTask = useAgentsStore((s) => s.upsertTask)
   const authFetch  = useAuthFetch()
   const API        = process.env.NEXT_PUBLIC_API_URL
@@ -258,26 +261,6 @@ function CeoCommandPanel({ onSelectAgent, onHeaderMouseDown }: { onSelectAgent: 
         )}
       </div>
 
-      {/* Direct-to-agent row */}
-      {agents.length > 0 && (
-        <div className="px-5 py-2.5 border-t border-white/[0.05]">
-          <p className="text-[9px] uppercase tracking-widest text-panel-muted/50 mb-2">Direct to a specific agent</p>
-          <div className="flex items-center gap-2 flex-wrap">
-            {agents.map((a) => (
-              <button key={a.id} onClick={() => onSelectAgent(a.id)}
-                title={a.name}
-                className="relative flex flex-col items-center gap-0.5 group">
-                <div className="relative">
-                  <img src={a.avatarUrl} alt={a.name} className="w-7 h-7 rounded-full object-cover border border-white/10 group-hover:border-panel-accent/50 transition-colors" />
-                  <span className={cn('absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-panel-bg', STATUS_DOT[a.status])} />
-                </div>
-                <span className="text-[8px] text-panel-muted group-hover:text-white transition-colors max-w-[40px] truncate">{a.name.split(' ')[0]}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Input */}
       <div className="px-4 pb-4 pt-2 border-t border-white/[0.07] shrink-0">
         <div className={cn(
@@ -408,13 +391,8 @@ function AgentChatArea({
 
   return (
     <div className="flex-1 flex flex-col min-w-0">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.07] shrink-0">
-        <img src={agent.avatarUrl} alt={agent.name} className="w-7 h-7 rounded-full object-cover shrink-0" />
-        <div className="flex-1 min-w-0">
-          <p className="text-white text-xs font-semibold truncate leading-tight">{agent.name}</p>
-          <p className="text-panel-muted text-[10px] truncate leading-tight">{role}</p>
-        </div>
+      {/* Compact action header — agent identity already shown in the top picker row */}
+      <div className="flex items-center justify-end gap-1.5 px-4 py-2 border-b border-white/[0.04] shrink-0">
         <AgentActionsHeader agentId={agent.id} agentName={agent.name} isPublic={agent.isPublic ?? false} />
         {MARKETING_ROLES.has(agent.role) && (
           <button
@@ -431,7 +409,7 @@ function AgentChatArea({
       <AnimatePresence>
         {showRating && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
-            className="absolute inset-x-[180px] bottom-0 z-10 px-4 py-5 bg-panel-bg border-t border-white/[0.08] flex flex-col items-center gap-3">
+            className="absolute inset-x-0 bottom-0 z-10 px-4 py-5 bg-panel-bg border-t border-white/[0.08] flex flex-col items-center gap-3">
             <p className="text-white text-sm font-medium">How did {agent.name} do?</p>
             <p className="text-panel-muted text-[11px] -mt-1">Your rating helps improve agent performance</p>
             <div className="flex gap-3 mt-1">
@@ -574,6 +552,171 @@ function AgentChatArea({
   )
 }
 
+// ── Top-row agent picker ──────────────────────────────────────────────────────
+function PickerCeoCard({
+  ceoName, ceoAvatar, isSelected, onClick,
+}: {
+  ceoName: string; ceoAvatar: string | null; isSelected: boolean; onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl transition-all min-w-[88px]',
+        isSelected ? 'bg-panel-accent/12' : 'hover:bg-white/[0.04]',
+      )}
+    >
+      <div className={cn(
+        'relative w-14 h-14 rounded-full border-2 transition-all overflow-hidden shrink-0',
+        isSelected
+          ? 'border-panel-accent shadow-md shadow-panel-accent/30'
+          : 'border-white/20',
+      )}>
+        {ceoAvatar
+          ? <img src={ceoAvatar} alt="CEO" className="w-full h-full object-cover" />
+          : <div className="w-full h-full bg-gradient-to-br from-panel-accent to-purple-500 text-white text-base font-black flex items-center justify-center">
+              {(ceoName[0] ?? 'C').toUpperCase()}
+            </div>
+        }
+        <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-panel-bg bg-emerald-400" />
+      </div>
+      <p className={cn('text-[12px] font-semibold whitespace-nowrap', isSelected ? 'text-white' : 'text-white/80')}>
+        {ceoName.split(' ')[0]}
+      </p>
+      <p className="text-[9px] text-panel-accent whitespace-nowrap">Command Center</p>
+    </button>
+  )
+}
+
+function PickerAgentCard({
+  agent, index, isSelected, onClick,
+}: {
+  agent: { id: string; name: string; role: string; avatarUrl: string; status: AgentStatus }
+  index: number
+  isSelected: boolean
+  onClick: () => void
+}) {
+  const authFetch              = useAuthFetch()
+  const API                    = process.env.NEXT_PUBLIC_API_URL
+  const draggingAppName        = useAgentsStore((s) => s.draggingAppName)
+  const pushAgentNotification  = useAgentsStore((s) => s.pushAgentNotification)
+  const [dropHover, setDropHover] = useState(false)
+
+  const draggedApp = draggingAppName ? findCatalogApp(draggingAppName) : null
+  const dropFitOk  = !draggedApp || canRoleUseApp(agent.role as AgentRole, draggedApp)
+
+  const role = AGENT_ROLE_LABELS[agent.role as keyof typeof AGENT_ROLE_LABELS] ?? agent.role
+
+  async function handleDropGrant(composioAppName: string) {
+    const cat = findCatalogApp(composioAppName)
+    if (cat && !canRoleUseApp(agent.role as AgentRole, cat)) {
+      pushAgentNotification(agent.id, {
+        id:        `grant-rejected-${composioAppName}-${Date.now()}`,
+        type:      'alert',
+        headline:  `${cat.label} isn't really my thing.`,
+        body:      `${role}s don't usually use ${cat.label}. Use the Connections panel to grant it anyway.`,
+        createdAt: new Date().toISOString(),
+      })
+      return
+    }
+    try {
+      await authFetch(`${API}/api/integrations/grants`, {
+        method: 'POST',
+        body:   JSON.stringify({ agentId: agent.id, composioAppName, mode: 'ALWAYS' }),
+      })
+      pushAgentNotification(agent.id, {
+        id:        `granted-${composioAppName}-${Date.now()}`,
+        type:      'opportunity',
+        headline:  `Thanks — I can use ${cat?.label ?? composioAppName} now.`,
+        createdAt: new Date().toISOString(),
+      })
+    } catch {
+      pushAgentNotification(agent.id, {
+        id:        `grant-failed-${Date.now()}`,
+        type:      'alert',
+        headline:  `Couldn't add ${cat?.label ?? composioAppName} — please try again.`,
+        createdAt: new Date().toISOString(),
+      })
+    }
+  }
+
+  return (
+    <motion.button
+      onClick={onClick}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes('text/composio-app')) {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'link'
+          if (!dropHover) setDropHover(true)
+        }
+      }}
+      onDragLeave={() => setDropHover(false)}
+      onDrop={(e) => {
+        const app = e.dataTransfer.getData('text/composio-app')
+        setDropHover(false)
+        if (app) {
+          e.preventDefault()
+          handleDropGrant(app)
+        }
+      }}
+      initial={{ opacity: 0, y: 8, scale: 0.9 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ delay: index * 0.08, duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+      className={cn(
+        'flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl transition-colors min-w-[88px] shrink-0',
+        isSelected ? 'bg-panel-accent/12' : 'hover:bg-white/[0.04]',
+      )}
+    >
+      {/* Inner motion handles the continuous bounce so it doesn't fight the entrance animation */}
+      <motion.div
+        className="relative shrink-0"
+        animate={{ y: [0, -3, 0] }}
+        transition={{
+          duration: 2.4 + (index * 0.31) % 1.2,
+          repeat:   Infinity,
+          ease:     'easeInOut',
+        }}
+      >
+        <div className={cn(
+          'relative w-14 h-14 rounded-full border-2 transition-all overflow-hidden',
+          dropHover && dropFitOk
+            ? 'border-emerald-400 ring-4 ring-emerald-400/40 scale-110'
+            : dropHover && !dropFitOk
+            ? 'border-amber-400 ring-4 ring-amber-400/30 scale-105'
+            : isSelected
+            ? 'border-panel-accent shadow-md shadow-panel-accent/30'
+            : 'border-white/20',
+        )}>
+          <img src={agent.avatarUrl} alt={agent.name} className="w-full h-full object-cover" />
+        </div>
+        <span className={cn(
+          'absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-panel-bg',
+          STATUS_DOT[agent.status],
+        )} />
+        {agent.status === 'WORKING' && (
+          <motion.span
+            className="absolute inset-[-3px] rounded-full border border-lamp-working/60 pointer-events-none"
+            animate={{ scale: [1, 1.2, 1], opacity: [0.6, 0, 0.6] }}
+            transition={{ duration: 1.8, repeat: Infinity }}
+          />
+        )}
+      </motion.div>
+      <p className={cn('text-[12px] font-semibold whitespace-nowrap', isSelected ? 'text-white' : 'text-white/80')}>
+        {agent.name}
+      </p>
+      <p className="text-[10px] text-panel-muted/80 truncate max-w-[100px]">{role}</p>
+      <p className={cn(
+        'text-[9px] font-medium whitespace-nowrap',
+        agent.status === 'WORKING' ? 'text-lamp-working' :
+        agent.status === 'BLOCKED' ? 'text-lamp-blocked' :
+        'text-white/40',
+      )}>
+        {STATUS_LABEL[agent.status]}
+      </p>
+    </motion.button>
+  )
+}
+
 // ── Main TeamChatPanel ────────────────────────────────────────────────────────
 export function TeamChatPanel() {
   const { user }           = useUser()
@@ -623,10 +766,10 @@ export function TeamChatPanel() {
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
           style={{
             transform: `translate(calc(-50% + ${dragOffset.x}px), ${dragOffset.y}px)`,
-            width:     '820px',
+            width:     'min(1200px, calc(100vw - 240px))',
             height:    'calc(100vh - 80px)',
           }}
-          className="fixed top-[60px] left-1/2 z-50 min-w-[480px] min-h-[400px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-80px)] flex flex-col rounded-2xl border border-white/10 bg-panel-bg shadow-2xl resize overflow-hidden"
+          className="fixed top-[60px] left-1/2 z-50 min-w-[560px] min-h-[400px] max-w-[calc(100vw-220px)] max-h-[calc(100vh-60px)] flex flex-col rounded-2xl border border-white/10 bg-panel-bg shadow-2xl resize overflow-hidden"
         >
           {/* ── Panel-level drag strip + window controls ─────────────────── */}
           <div
@@ -669,92 +812,42 @@ export function TeamChatPanel() {
             </button>
           </div>
 
-          {/* ── Body: left agent sidebar + right mode content ─────────── */}
-          <div className="flex flex-1 min-h-0">
+          {/* ── Top-row agent picker ─────────────────────────────────── */}
+          <div className="px-4 py-3 border-b border-white/[0.07] shrink-0 flex items-start gap-2 overflow-x-auto scrollbar-none">
+            <PickerCeoCard
+              ceoName={ceoName}
+              ceoAvatar={ceoAvatar}
+              isSelected={isCeoMode}
+              onClick={() => setActiveChatAgent(null)}
+            />
+            {agents.length > 0 && (
+              <div className="w-px self-stretch bg-white/[0.06] mx-2 my-1" />
+            )}
+            {agents.map((agent, idx) => (
+              <PickerAgentCard
+                key={agent.id}
+                agent={agent}
+                index={idx}
+                isSelected={activeChatAgentId === agent.id}
+                onClick={() => setActiveChatAgent(agent.id)}
+              />
+            ))}
+          </div>
 
-            {/* Left sidebar — agent picker */}
-            <div className="w-[180px] shrink-0 border-r border-white/[0.07] flex flex-col">
-              <div className="flex-1 overflow-y-auto scrollbar-none p-2 space-y-1">
-
-                {/* CEO entry */}
-                <button
-                  onClick={() => setActiveChatAgent(null)}
-                  className={cn(
-                    'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition-all border',
-                    isCeoMode
-                      ? 'bg-panel-accent/15 border-panel-accent/25'
-                      : 'hover:bg-white/[0.05] border-transparent',
-                  )}
-                >
-                  <div className="relative shrink-0">
-                    {ceoAvatar
-                      ? <img src={ceoAvatar} alt="CEO" className="w-8 h-8 rounded-full object-cover ring-1 ring-panel-accent/40" />
-                      : <div className="w-8 h-8 rounded-full bg-gradient-to-br from-panel-accent to-purple-500 flex items-center justify-center text-white text-[10px] font-black">CEO</div>
-                    }
-                    <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-panel-bg bg-emerald-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={cn('text-xs font-semibold truncate', isCeoMode ? 'text-white' : 'text-white/70')}>{ceoName}</p>
-                    <p className="text-[9px] text-panel-accent truncate">Command Center</p>
-                  </div>
-                </button>
-
-                <div className="border-t border-white/[0.05] my-1" />
-
-                {/* Agent entries */}
-                {agents.map((agent) => {
-                  const isActive  = activeChatAgentId === agent.id
-                  const hasThread = (threads[agent.id]?.length ?? 0) > 0
-                  const agentRole = AGENT_ROLE_LABELS[agent.role as keyof typeof AGENT_ROLE_LABELS] ?? agent.role
-
-                  return (
-                    <button
-                      key={agent.id}
-                      onClick={() => setActiveChatAgent(agent.id)}
-                      className={cn(
-                        'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition-all border',
-                        isActive ? 'bg-panel-accent/15 border-panel-accent/25' : 'hover:bg-white/[0.05] border-transparent',
-                      )}
-                    >
-                      <div className="relative shrink-0">
-                        <img src={agent.avatarUrl} alt={agent.name} className="w-8 h-8 rounded-full object-cover" />
-                        <span className={cn('absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-panel-bg', STATUS_DOT[agent.status])} />
-                        {agent.status === 'WORKING' && (
-                          <motion.span
-                            className="absolute inset-[-2px] rounded-full border border-lamp-working/60"
-                            animate={{ scale: [1, 1.3, 1], opacity: [0.6, 0, 0.6] }}
-                            transition={{ duration: 1.8, repeat: Infinity }}
-                          />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={cn('text-xs font-semibold truncate', isActive ? 'text-white' : 'text-white/70')}>{agent.name}</p>
-                        <p className="text-[9px] text-panel-muted truncate">{agentRole}</p>
-                      </div>
-                      {hasThread && !isActive && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-panel-accent shrink-0" />
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Right side — mode-specific content */}
-            <div className="flex-1 min-w-0 flex flex-col">
-              {isCeoMode
-                ? <CeoCommandPanel onSelectAgent={(id) => setActiveChatAgent(id)} />
-                : <AgentChatArea
-                    agentId={activeChatAgentId!}
-                    threads={threads}
-                    addMessage={addMessage}
-                    lastTaskIds={lastTaskIds}
-                    setLastTaskIds={setLastTaskIds}
-                    rated={rated}
-                    setRated={setRated}
-                  />
-              }
-            </div>
+          {/* ── Content area (CEO command or agent chat) ─────────────── */}
+          <div className="flex-1 min-w-0 flex flex-col">
+            {isCeoMode
+              ? <CeoCommandPanel />
+              : <AgentChatArea
+                  agentId={activeChatAgentId!}
+                  threads={threads}
+                  addMessage={addMessage}
+                  lastTaskIds={lastTaskIds}
+                  setLastTaskIds={setLastTaskIds}
+                  rated={rated}
+                  setRated={setRated}
+                />
+            }
           </div>
         </motion.div>
       )}
