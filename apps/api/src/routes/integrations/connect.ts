@@ -85,31 +85,43 @@ export default async function integrationsRoute(app: FastifyInstance) {
 
     try {
       // Composio's new Platform requires an Auth Config (formerly "Integration")
-      // per app, set up in the dashboard. We look it up dynamically by app key
-      // so the user only has to configure it once on the Composio side.
+      // per app. We discover the user's auth config dynamically.
       let integrationId: string | undefined
+      let lookupRaw: any
       try {
-        const list = await toolset.client.integrations.list({ appUniqueKeys: [composioAppName] } as any)
-        const items = (list as any)?.items ?? (list as any) ?? []
+        lookupRaw = await toolset.client.integrations.list({ appUniqueKeys: [composioAppName] } as any)
+        // eslint-disable-next-line no-console
+        console.log('[connect] integrations.list raw:', JSON.stringify(lookupRaw).slice(0, 500))
+        const items = (lookupRaw as any)?.items ?? (lookupRaw as any) ?? []
+        // eslint-disable-next-line no-console
+        console.log('[connect] integrations.list items count:', Array.isArray(items) ? items.length : 'not-array')
         const active = (items as any[]).find((i: any) =>
-          (i.appName?.toLowerCase?.() === composioAppName || i.appUniqueKey === composioAppName) &&
+          (i.appName?.toLowerCase?.() === composioAppName ||
+           i.appUniqueKey === composioAppName ||
+           i.app_name?.toLowerCase?.() === composioAppName) &&
           i.enabled !== false
         )
         integrationId = active?.id
-      } catch (lookupErr) {
-        // Lookup failed — fall through and try the bare appName flow as a
-        // last resort (works on the older Composio API).
         // eslint-disable-next-line no-console
-        console.warn('[connect] integration lookup failed for', composioAppName, ':', (lookupErr as Error).message)
+        console.log('[connect] resolved integrationId for', composioAppName, '=', integrationId)
+      } catch (lookupErr) {
+        // eslint-disable-next-line no-console
+        console.error('[connect] integrations.list FAILED for', composioAppName, ':', (lookupErr as Error).message)
       }
 
-      const connection = await entity.initiateConnection(
-        integrationId
-          ? { integrationId, redirectUri: callbackUrl }
-          : { appName: composioAppName, redirectUri: callbackUrl }
-      )
+      const params = integrationId
+        ? { integrationId, redirectUri: callbackUrl }
+        : { appName: composioAppName, redirectUri: callbackUrl }
+      // eslint-disable-next-line no-console
+      console.log('[connect] calling initiateConnection with', JSON.stringify(params))
+
+      const connection = await entity.initiateConnection(params)
+      // eslint-disable-next-line no-console
+      console.log('[connect] initiateConnection OK, redirectUrl=', (connection as any)?.redirectUrl)
       return reply.send({ redirectUrl: connection.redirectUrl })
     } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[connect] initiateConnection threw:', err)
       return reply.code(502).send({
         error:  'Could not initiate OAuth',
         detail: (err as Error).message,
