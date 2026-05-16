@@ -518,7 +518,7 @@ export default function CeoLayerPage() {
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400/25 to-orange-500/5 border border-amber-400/25 flex items-center justify-center shadow-lg shadow-amber-400/10">
               <Shield size={14} className="text-amber-400" />
             </div>
-            <span className="text-sm font-bold text-white tracking-tight">CEO Control Center</span>
+            <span className="text-sm font-bold text-white tracking-tight">CEO Cockpit</span>
             {data && data.pendingCount > 0 && (
               <span className="px-2 py-0.5 rounded-full bg-amber-400 text-[#080b14] text-[10px] font-black animate-pulse">
                 {data.pendingCount}

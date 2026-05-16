@@ -78,7 +78,7 @@ export function LandingPage() {
           <div className="mt-16 max-w-3xl mx-auto">
             <div className="rounded-2xl border border-white/[0.08] bg-[#12172b]/80 p-6 text-left">
               <div className="text-[10px] text-[#8892B0] uppercase tracking-widest mb-4 font-semibold">
-                CEO Control Center — Pending Review Queue
+                CEO Cockpit — Pending Review Queue
               </div>
               <div className="space-y-3">
                 {[
