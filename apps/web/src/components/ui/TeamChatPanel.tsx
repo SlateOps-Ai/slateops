@@ -558,10 +558,14 @@ function AgentChatArea({
 
 // ── Top-row agent picker ──────────────────────────────────────────────────────
 function PickerCeoCard({
-  ceoName, ceoAvatar, isSelected, onClick,
+  ceoName, isSelected, onClick,
 }: {
-  ceoName: string; ceoAvatar: string | null; isSelected: boolean; onClick: () => void
+  ceoName: string; isSelected: boolean; onClick: () => void
 }) {
+  // The CEO is the brand itself — show the SlateOps mark instead of a
+  // user portrait. Square logo on a round-bordered container so it sits
+  // visually alongside the round agent avatars without pretending to be
+  // a person; the shape signals "this is the brand / system".
   return (
     <button
       onClick={onClick}
@@ -571,17 +575,12 @@ function PickerCeoCard({
       )}
     >
       <div className={cn(
-        'relative w-14 h-14 rounded-full border-2 transition-all overflow-hidden shrink-0',
+        'relative w-14 h-14 rounded-full border-2 transition-all flex items-center justify-center shrink-0',
         isSelected
-          ? 'border-panel-accent shadow-md shadow-panel-accent/30'
-          : 'border-white/20',
+          ? 'border-panel-accent shadow-md shadow-panel-accent/30 bg-amber-400/[0.06]'
+          : 'border-white/20 bg-white/[0.02]',
       )}>
-        {ceoAvatar
-          ? <img src={ceoAvatar} alt="CEO" className="w-full h-full object-cover" />
-          : <div className="w-full h-full bg-gradient-to-br from-panel-accent to-purple-500 text-white text-base font-black flex items-center justify-center">
-              {(ceoName[0] ?? 'C').toUpperCase()}
-            </div>
-        }
+        <SlateCaretLogo size={36} variant="amber" animate={isSelected} />
         <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-panel-bg bg-emerald-400" />
       </div>
       <p className={cn('text-[12px] font-semibold whitespace-nowrap', isSelected ? 'text-white' : 'text-white/80')}>
@@ -808,7 +807,6 @@ export function TeamChatPanel() {
 
   const isCeoMode = activeChatAgentId === null
   const ceoName   = user?.firstName ?? user?.fullName ?? 'You'
-  const ceoAvatar = user?.imageUrl ?? null
 
   function addMessage(agentId: string, msg: Message) {
     setThreads((prev) => ({ ...prev, [agentId]: [...(prev[agentId] ?? []), msg] }))
@@ -875,10 +873,7 @@ export function TeamChatPanel() {
               )}
               title="Broadcast / Command Center"
             >
-              {ceoAvatar
-                ? <img src={ceoAvatar} alt="CEO" className="w-3.5 h-3.5 rounded-full object-cover" />
-                : <span className="w-3.5 h-3.5 rounded-full bg-gradient-to-br from-panel-accent to-purple-500 text-white text-[8px] font-black flex items-center justify-center">{(ceoName[0] ?? 'C').toUpperCase()}</span>
-              }
+              <SlateCaretLogo size={14} variant="amber" animate={false} />
               <span className="font-medium">CEO chat</span>
             </button>
             <div className="flex-1" />
@@ -904,7 +899,6 @@ export function TeamChatPanel() {
           <div className="px-4 py-3 border-b border-white/[0.07] shrink-0 flex items-start gap-2 overflow-x-auto scrollbar-none">
             <PickerCeoCard
               ceoName={ceoName}
-              ceoAvatar={ceoAvatar}
               isSelected={isCeoMode}
               onClick={() => setActiveChatAgent(null)}
             />
