@@ -202,7 +202,7 @@ export function OfficeCanvas() {
 
   return (
     <>
-    <div className="relative w-full h-screen bg-office-wall overflow-hidden">
+    <div className="relative w-full h-screen bg-[#0d0f1a] overflow-hidden">
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full"
