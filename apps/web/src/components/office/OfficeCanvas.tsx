@@ -205,13 +205,19 @@ export function OfficeCanvas() {
             <Sparkles size={10} className="absolute -top-1.5 -right-1.5 text-panel-accent/60" />
           </div>
           {/* Wordmark — lowercase with a blinking caret divider, echoing the
-              SlateText typewriter pattern. The caret is the brand mark. */}
+              SlateText typewriter pattern. The caret is the brand mark.
+              Sized to the x-height so it visually rests with the lowercase
+              letter mass instead of towering above it. */}
           <p className="text-[90px] font-bold tracking-tight leading-none text-white flex items-baseline">
             <span>slate</span>
             <span
               aria-hidden
-              className="inline-block w-[6px] h-[0.85em] mx-[6px] bg-panel-accent rounded-sm animate-pulse"
-              style={{ animationDuration: '0.7s' }}
+              className="inline-block w-[5px] mx-[10px] bg-amber-400 rounded-[2px] animate-pulse"
+              style={{
+                animationDuration: '0.7s',
+                height:    '0.55em',
+                transform: 'translateY(-0.04em)',
+              }}
             />
             <span>ops</span>
           </p>
