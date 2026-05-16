@@ -349,8 +349,9 @@ export function OfficeCanvas() {
                   )}
                 </button>
 
-                {/* Nav */}
-                <div className="flex-1 overflow-y-auto scrollbar-none pt-[800px] pb-2">
+                {/* Nav — pinned to the bottom of the sidebar (flex push-down),
+                    no scroll. The empty space above is intentional whitespace. */}
+                <div className="flex-1 flex flex-col justify-end overflow-hidden pb-2">
                   {NAV_GROUPS.map(({ group, items }) => (
                     <div key={group} className="mb-1">
                       <p className="px-4 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-[0.15em] text-white/40">{group}</p>
