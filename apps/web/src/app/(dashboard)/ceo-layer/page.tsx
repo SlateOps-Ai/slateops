@@ -249,6 +249,9 @@ export default function CeoLayerPage() {
 
   useEffect(() => { load() }, [load])
 
+  const [bulkActing,  setBulkActing]  = useState<'APPROVED' | 'CANCELLED' | null>(null)
+  const [selectedIdx, setSelectedIdx] = useState<number>(-1)
+
   async function decide(taskId: string, decision: 'APPROVED' | 'CANCELLED') {
     setActing(taskId)
     const token = await getToken()
@@ -260,6 +263,64 @@ export default function CeoLayerPage() {
     await load()
     setActing(null)
   }
+
+  async function bulkDecide(decision: 'APPROVED' | 'CANCELLED') {
+    const items = data?.pendingApprovals ?? []
+    if (items.length === 0) return
+    if (decision === 'CANCELLED' && !window.confirm(`Reject all ${items.length} pending decisions?`)) return
+    setBulkActing(decision)
+    const token = await getToken()
+    const base  = process.env.NEXT_PUBLIC_API_URL
+    await Promise.all(items.map((item) => fetch(`${base}/api/approvals/${item.id}`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body:    JSON.stringify({ status: decision }),
+    })))
+    await load()
+    setBulkActing(null)
+    setSelectedIdx(-1)
+  }
+
+  // Keyboard shortcuts — j/k navigate, a approve, r reject, Shift+A approve all.
+  // Skipped when an input/textarea/contenteditable has focus.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const el  = document.activeElement as HTMLElement | null
+      const tag = (el?.tagName ?? '').toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || el?.isContentEditable) return
+
+      const items = data?.pendingApprovals ?? []
+      if (items.length === 0) return
+
+      if (e.key === 'j' || e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSelectedIdx((i) => Math.min(items.length - 1, Math.max(0, i + 1)))
+      } else if (e.key === 'k' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSelectedIdx((i) => (i <= 0 ? 0 : i - 1))
+      } else if (e.key === 'A' && e.shiftKey) {
+        e.preventDefault()
+        bulkDecide('APPROVED')
+      } else if ((e.key === 'a' || e.key === 'Enter') && !e.shiftKey && selectedIdx >= 0) {
+        e.preventDefault()
+        decide(items[selectedIdx].id, 'APPROVED')
+      } else if (e.key === 'r' && selectedIdx >= 0) {
+        e.preventDefault()
+        decide(items[selectedIdx].id, 'CANCELLED')
+      } else if (e.key === 'Escape') {
+        setSelectedIdx(-1)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, selectedIdx])
+
+  // Reset selection when the queue empties or reshuffles
+  useEffect(() => {
+    const len = data?.pendingApprovals.length ?? 0
+    if (selectedIdx >= len) setSelectedIdx(len - 1)
+  }, [data, selectedIdx])
 
   const ov           = exec?.overview
   const execAgents   = exec?.agents ?? []
@@ -399,8 +460,30 @@ export default function CeoLayerPage() {
                   </p>
                 </div>
               </div>
-              <p className="mt-3 text-[13px] text-amber-400/60 leading-relaxed border-t border-white/[0.04] pt-3">
-                Every AI action is reviewable before it executes. Nothing ships without your sign-off.
+              {(data?.pendingCount ?? 0) > 1 && (
+                <div className="mt-3 border-t border-white/[0.04] pt-3 flex items-center gap-2">
+                  <button
+                    onClick={() => bulkDecide('APPROVED')}
+                    disabled={!!bulkActing}
+                    className="flex-1 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 text-[11px] font-semibold hover:bg-emerald-500/25 transition-colors disabled:opacity-40 flex items-center justify-center gap-1.5"
+                  >
+                    {bulkActing === 'APPROVED'
+                      ? <span className="w-3 h-3 rounded-full border border-emerald-400 border-t-transparent animate-spin" />
+                      : <CheckCheck size={11} />}
+                    Approve all ({data!.pendingCount})
+                  </button>
+                  <button
+                    onClick={() => bulkDecide('CANCELLED')}
+                    disabled={!!bulkActing}
+                    className="py-1.5 px-3 rounded-lg bg-white/[0.02] border border-white/[0.08] text-white/40 text-[11px] font-semibold hover:bg-red-500/10 hover:border-red-500/20 hover:text-red-400 transition-colors disabled:opacity-40 flex items-center justify-center gap-1.5"
+                    title="Reject all (asks first)"
+                  >
+                    <Ban size={11} /> Reject all
+                  </button>
+                </div>
+              )}
+              <p className="mt-2.5 text-[10px] text-white/30 leading-relaxed">
+                <kbd className="font-mono">j/k</kbd> navigate · <kbd className="font-mono">a</kbd> approve · <kbd className="font-mono">r</kbd> reject · <kbd className="font-mono">⇧A</kbd> approve all
               </p>
             </div>
 
@@ -417,10 +500,22 @@ export default function CeoLayerPage() {
                 </div>
               ) : (
                 <div className="p-4 space-y-3">
-                  {data.pendingApprovals.map((item) => {
-                    const expiring = item.expiresAt && new Date(item.expiresAt) < new Date(Date.now() + 3 * 60 * 60 * 1000)
+                  {data.pendingApprovals.map((item, idx) => {
+                    const expiring   = item.expiresAt && new Date(item.expiresAt) < new Date(Date.now() + 3 * 60 * 60 * 1000)
+                    const isSelected = selectedIdx === idx
                     return (
-                      <div key={item.id} className={cn('rounded-xl border p-4 space-y-3', expiring ? 'border-amber-400/25 bg-amber-400/[0.03]' : 'border-white/[0.07] bg-white/[0.015]')}>
+                      <div
+                        key={item.id}
+                        onClick={() => setSelectedIdx(idx)}
+                        className={cn(
+                          'rounded-xl border p-4 space-y-3 transition-all cursor-pointer',
+                          isSelected
+                            ? 'border-amber-400/60 bg-amber-400/[0.06] shadow-lg shadow-amber-400/10 ring-1 ring-amber-400/30'
+                            : expiring
+                            ? 'border-amber-400/25 bg-amber-400/[0.03] hover:border-amber-400/40'
+                            : 'border-white/[0.07] bg-white/[0.015] hover:border-white/[0.12]',
+                        )}
+                      >
                         <div className="flex items-start gap-3">
                           <div className="w-9 h-9 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center shrink-0 overflow-hidden">
                             {item.agentAvatar
@@ -442,13 +537,16 @@ export default function CeoLayerPage() {
                             </div>
                           )}
                         </div>
-                        <div className="rounded-lg bg-white/[0.025] border border-white/[0.05] p-3 space-y-1.5">
+                        <div className="rounded-lg bg-white/[0.025] border border-white/[0.05] p-3 space-y-2">
                           <div className="flex items-center gap-1.5">
                             {actionIcon(item.action)}
-                            <p className="text-[9px] font-bold uppercase tracking-widest text-white/25">Proposed action</p>
+                            <p className="text-[9px] font-bold uppercase tracking-widest text-white/25">{item.action}</p>
                           </div>
-                          <p className="text-white/65 text-xs leading-relaxed">{item.action}</p>
-                          {item.preview && <p className="text-white/30 text-[10px] leading-relaxed line-clamp-2 border-t border-white/[0.04] pt-1.5 italic">{item.preview}</p>}
+                          {item.preview && (
+                            <p className="text-white/85 text-[12px] leading-relaxed whitespace-pre-wrap max-h-[200px] overflow-y-auto scrollbar-none">
+                              {item.preview}
+                            </p>
+                          )}
                         </div>
                         <div className="flex gap-2">
                           <button
