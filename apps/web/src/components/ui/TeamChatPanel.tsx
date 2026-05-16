@@ -469,10 +469,10 @@ function AgentChatArea({
             if (messages[k].role === 'assistant') { lastAssistantIdx = k; break }
           }
           return messages.map((m, i) => (
-          <div key={i} className={cn('group flex gap-3 items-end', m.role === 'user' ? 'justify-end' : 'justify-start')}>
+          <div key={i} className={cn('group flex gap-3 items-end min-w-0', m.role === 'user' ? 'justify-end' : 'justify-start')}>
             {m.role === 'assistant' && <img src={agent.avatarUrl} alt={agent.name} className="w-7 h-7 rounded-full object-cover shrink-0 mb-0.5" />}
-            <div className={cn('flex flex-col gap-1', m.role === 'user' ? 'items-end' : 'items-start')}>
-              <div className={cn('max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words',
+            <div className={cn('flex flex-col gap-1 min-w-0 max-w-[min(720px,75%)]', m.role === 'user' ? 'items-end' : 'items-start')}>
+              <div className={cn('rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words',
                 m.role === 'user' ? 'bg-panel-accent/20 text-white rounded-br-sm' : 'bg-white/5 border border-white/10 text-white rounded-bl-sm')}>
                 {m.role === 'assistant' && i === lastAssistantIdx
                   ? <SlateText text={m.content} maxDurationMs={2200} />
@@ -481,7 +481,7 @@ function AgentChatArea({
 
               {/* Inline draft-post card with one-click schedule */}
               {m.role === 'assistant' && m.draftPost && (
-                <div className="max-w-[78%] mt-1 rounded-xl border border-panel-accent/30 bg-panel-accent/[0.06] p-3 space-y-2">
+                <div className="mt-1 rounded-xl border border-panel-accent/30 bg-panel-accent/[0.06] p-3 space-y-2">
                   <div className="flex items-center gap-2">
                     <Calendar size={11} className="text-panel-accent" />
                     <span className="text-[10px] uppercase tracking-widest text-panel-accent font-semibold">
