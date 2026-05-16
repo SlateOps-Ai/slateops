@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { ComposioToolSet } from 'composio-core'
+import { getComposioClient } from '../../lib/composio.js'
 import { prisma } from '../../lib/prisma.js'
 import { INTEGRATION_CATALOG, findCatalogApp, appsForRoles } from '@agentcity/types'
 import type { AgentRole } from '@agentcity/types'
@@ -78,54 +78,48 @@ export default async function integrationsRoute(app: FastifyInstance) {
       return reply.code(400).send({ error: 'Unknown app', composioAppName })
     }
 
-    const toolset = new ComposioToolSet({ apiKey: process.env.COMPOSIO_API_KEY })
-    const entity  = toolset.client.getEntity(userId)
-
+    const composio = getComposioClient()
     const callbackUrl = `${process.env.WEB_URL ?? 'http://localhost:3000'}/oauth-callback?connected=${composioAppName}`
 
     try {
-      // Composio's new Platform requires an Auth Config (formerly "Integration")
-      // per app. We discover the user's auth config dynamically.
-      let integrationId: string | undefined
-      let lookupRaw: any
-      try {
-        lookupRaw = await toolset.client.integrations.list({ appUniqueKeys: [composioAppName] } as any)
-        // eslint-disable-next-line no-console
-        console.log('[connect] integrations.list raw:', JSON.stringify(lookupRaw).slice(0, 500))
-        const items = (lookupRaw as any)?.items ?? (lookupRaw as any) ?? []
-        // eslint-disable-next-line no-console
-        console.log('[connect] integrations.list items count:', Array.isArray(items) ? items.length : 'not-array')
-        const active = (items as any[]).find((i: any) =>
-          (i.appName?.toLowerCase?.() === composioAppName ||
-           i.appUniqueKey === composioAppName ||
-           i.app_name?.toLowerCase?.() === composioAppName) &&
-          i.enabled !== false
-        )
-        integrationId = active?.id
-        // eslint-disable-next-line no-console
-        console.log('[connect] resolved integrationId for', composioAppName, '=', integrationId)
-      } catch (lookupErr) {
-        // eslint-disable-next-line no-console
-        console.error('[connect] integrations.list FAILED for', composioAppName, ':', (lookupErr as Error).message)
+      // New Platform: look up the Auth Config for this toolkit
+      // eslint-disable-next-line no-console
+      console.log('[connect] looking up authConfigs for toolkit=', composioAppName)
+      const authConfigs = await composio.authConfigs.list({ toolkit: composioAppName })
+      // eslint-disable-next-line no-console
+      console.log('[connect] authConfigs.list returned', authConfigs.items.length, 'item(s)')
+      const active = authConfigs.items.find((c: any) => c.enabled !== false)
+      if (!active) {
+        return reply.code(400).send({
+          error:  'No Auth Config',
+          detail: `No active Auth Config found for "${composioAppName}".`,
+          hint:   `In the Composio dashboard, open Toolkits → ${composioAppName} → "+ Add to Project" → pick Composio Managed → Create Auth Config.`,
+        })
       }
-
-      const params = integrationId
-        ? { integrationId, redirectUri: callbackUrl }
-        : { appName: composioAppName, redirectUri: callbackUrl }
       // eslint-disable-next-line no-console
-      console.log('[connect] calling initiateConnection with', JSON.stringify(params))
+      console.log('[connect] using authConfigId=', active.id)
 
-      const connection = await entity.initiateConnection(params)
+      const conn = await composio.connectedAccounts.initiate(userId, active.id, {
+        callbackUrl,
+        allowMultiple: true, // accept re-connecting even if a stale ACTIVE row exists
+      })
       // eslint-disable-next-line no-console
-      console.log('[connect] initiateConnection OK, redirectUrl=', (connection as any)?.redirectUrl)
-      return reply.send({ redirectUrl: connection.redirectUrl })
+      console.log('[connect] initiate OK, redirectUrl=', conn.redirectUrl, ' connectedAccountId=', conn.id)
+
+      if (!conn.redirectUrl) {
+        return reply.code(502).send({
+          error:  'No redirect URL',
+          detail: `Composio returned no redirect URL — auth config may not be OAuth2.`,
+        })
+      }
+      return reply.send({ redirectUrl: conn.redirectUrl, connectedAccountId: conn.id })
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error('[connect] initiateConnection threw:', err)
+      console.error('[connect] failed:', err)
       return reply.code(502).send({
         error:  'Could not initiate OAuth',
         detail: (err as Error).message,
-        hint:   `Make sure an Auth Config is set up for "${composioAppName}" in the Composio dashboard (Toolkits → ${composioAppName} → Add to Project).`,
+        hint:   `Make sure an Auth Config is set up for "${composioAppName}" in the Composio dashboard.`,
       })
     }
   })
