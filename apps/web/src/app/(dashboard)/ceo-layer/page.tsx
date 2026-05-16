@@ -338,6 +338,18 @@ export default function CeoLayerPage() {
   const [activityFrom,     setActivityFrom]     = useState<string>(new Date().toISOString().slice(0, 10))
   const [activityTo,       setActivityTo]       = useState<string>(new Date().toISOString().slice(0, 10))
   const [activityStatus,   setActivityStatus]   = useState<string>('ALL')
+  const [timeWindow,       setTimeWindow]       = useState<'today' | 'week' | 'month'>('today')
+
+  // Selecting a window jumps the activity feed dates. The feed's own preset
+  // buttons + date inputs can still override for custom ranges.
+  useEffect(() => {
+    const today  = new Date().toISOString().slice(0, 10)
+    const past7  = new Date(Date.now() - 7  * 86_400_000).toISOString().slice(0, 10)
+    const past30 = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10)
+    if (timeWindow === 'today') { setActivityFrom(today);  setActivityTo(today) }
+    if (timeWindow === 'week')  { setActivityFrom(past7);  setActivityTo(today) }
+    if (timeWindow === 'month') { setActivityFrom(past30); setActivityTo(today) }
+  }, [timeWindow])
 
   const load = useCallback(async () => {
     const token = await getToken()
@@ -616,6 +628,32 @@ export default function CeoLayerPage() {
             ))}
           </div>
         </section>
+      )}
+
+      {/* ── Time window tabs — scopes the activity feed; other dashboards
+            keep their own windows (labelled in-place). ───────────────────── */}
+      {!loading && (
+        <div className="shrink-0 px-6 pt-4 pb-2 flex items-center gap-1.5 bg-[#080b14]">
+          <span className="text-[10px] uppercase tracking-widest text-white/30 font-semibold mr-2">Show</span>
+          {([
+            { id: 'today', label: 'Today' },
+            { id: 'week',  label: 'This Week' },
+            { id: 'month', label: 'This Month' },
+          ] as const).map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTimeWindow(t.id)}
+              className={cn(
+                'px-3 py-1 rounded-lg text-[11px] font-semibold transition-colors border',
+                timeWindow === t.id
+                  ? 'bg-white/[0.08] text-white border-white/15'
+                  : 'text-white/40 hover:text-white/70 hover:bg-white/[0.04] border-transparent',
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       )}
 
       {/* ── Body ───────────────────────────────────────────────────────── */}
