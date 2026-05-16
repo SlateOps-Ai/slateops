@@ -97,6 +97,31 @@ function timeLeft(iso: string) {
   const m = Math.floor(diff / 60000)
   return m < 60 ? `${m}m left` : `${Math.floor(m / 60)}h left`
 }
+/**
+ * Section banner — horizontal divider with a numbered label. Used to
+ * consolidate the 11 widgets into 5 mental zones (Decisions / Today /
+ * Team / Money / Guardrails) without moving any underlying JSX.
+ */
+function SectionBanner({ n, label, subtitle, tone = 'neutral' }: {
+  n: number; label: string; subtitle?: string; tone?: 'neutral' | 'amber' | 'blue' | 'emerald'
+}) {
+  const tint =
+    tone === 'amber'   ? 'text-amber-400'   :
+    tone === 'blue'    ? 'text-[#4d7fff]'   :
+    tone === 'emerald' ? 'text-emerald-400' :
+                         'text-white/40'
+  return (
+    <div className="flex items-center gap-3 pt-1 pb-2">
+      <span className={cn('text-[9px] uppercase tracking-[0.2em] font-black tabular-nums', tint)}>{n.toString().padStart(2, '0')}</span>
+      <div className="flex items-baseline gap-2">
+        <span className="text-[12px] font-bold uppercase tracking-widest text-white antialiased">{label}</span>
+        {subtitle && <span className="text-[10px] text-white/30">— {subtitle}</span>}
+      </div>
+      <div className="flex-1 h-px bg-white/[0.06]" />
+    </div>
+  )
+}
+
 interface Anomaly {
   tone: 'positive' | 'warning' | 'neutral'
   icon: React.ReactNode
@@ -667,8 +692,9 @@ export default function CeoLayerPage() {
       ) : (
         <div className="flex-1 p-5 flex gap-4 overflow-hidden">
 
-          {/* ── Panel 1: Approval Queue + ROI ───────────────────────── */}
+          {/* ── Panel 1: Decisions + Money & Impact ─────────────────── */}
           <div className="w-[32%] flex flex-col gap-4">
+          <SectionBanner n={1} label="Decisions" subtitle="Your sign-off pipeline" tone="amber" />
           <div ref={approvalQueueRef} className="h-[12cm] flex flex-col rounded-2xl border border-white/[0.07] bg-[#0d1117] overflow-hidden shadow-xl shadow-black/30 scroll-mt-6">
             <div className="px-5 py-4 border-b border-white/[0.06] shrink-0">
               <div className="flex items-center gap-3">
@@ -801,6 +827,8 @@ export default function CeoLayerPage() {
               )}
             </div>
           </div>
+
+            <SectionBanner n={4} label="Money & Impact" subtitle="What you got, what it cost" tone="emerald" />
 
             {/* ROI & Impact */}
             <div className="rounded-2xl border border-white/[0.07] bg-[#0d1117] overflow-hidden shadow-xl shadow-black/30">
@@ -979,7 +1007,9 @@ export default function CeoLayerPage() {
             </div>
           </div>
 
-          {/* ── Panel 2: Activity Feed ───────────────────────────────── */}
+          {/* ── Panel 2: Today's Narrative (Activity Feed) ──────────── */}
+          <div className="w-[30%] flex flex-col gap-2">
+          <SectionBanner n={2} label="Today's narrative" subtitle="What happened, in order" tone="blue" />
           {(() => {
             const today = new Date().toISOString().slice(0, 10)
             const daysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10)
@@ -1008,7 +1038,7 @@ export default function CeoLayerPage() {
               : `${activityFrom} → ${activityTo}`
 
             return (
-              <div className="w-[30%] h-[12cm] flex flex-col rounded-2xl border border-white/[0.07] bg-[#0d1117] overflow-hidden shadow-xl shadow-black/30">
+              <div className="h-[12cm] flex flex-col rounded-2xl border border-white/[0.07] bg-[#0d1117] overflow-hidden shadow-xl shadow-black/30">
 
                 {/* Header */}
                 <div className="px-4 pt-4 pb-0 shrink-0 space-y-3">
@@ -1158,9 +1188,12 @@ export default function CeoLayerPage() {
               </div>
             )
           })()}
+          </div>
 
-          {/* ── Panel 3: Intelligence & Governance ──────────────────── */}
+          {/* ── Panel 3: Team Status + Guardrails ───────────────────── */}
           <div className="flex-1 flex flex-col gap-4 overflow-y-auto min-w-0">
+
+            <SectionBanner n={3} label="Team status" subtitle="Where each agent is" tone="blue" />
 
             {/* Task Overview KPIs */}
             <div className="rounded-2xl border border-white/[0.07] bg-[#0d1117] overflow-hidden shadow-xl shadow-black/30">
@@ -1313,6 +1346,8 @@ export default function CeoLayerPage() {
                 ) : execAgents.map((a) => <AgentPerformanceCard key={a.id} agent={a} />)}
               </div>
             </div>
+
+            <SectionBanner n={5} label="Guardrails & alerts" subtitle="Safety, controls, pipeline" tone="amber" />
 
             {/* Content Pipeline */}
             {(() => {
