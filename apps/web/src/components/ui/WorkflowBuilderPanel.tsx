@@ -498,7 +498,9 @@ export function WorkflowBuilderPanel({ onClose }: Props) {
                               <span className="truncate max-w-[70px]">{s.label}</span>
                             </span>
                             {(s as WorkflowStep).requiresGate && i < wf.steps.length - 1 && (
-                              <ShieldCheck size={9} className="text-amber-400 shrink-0" title="Human Review Gate" />
+                              <span title="Human Review Gate" className="inline-flex shrink-0">
+                                <ShieldCheck size={9} className="text-amber-400" />
+                              </span>
                             )}
                           </span>
                         )

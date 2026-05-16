@@ -37,7 +37,7 @@ async function exportXlsx(content: string, title: string) {
 async function exportDocx(content: string, title: string) {
   const { Document, Paragraph, TextRun, HeadingLevel, Packer, AlignmentType } = await import('docx')
 
-  const paragraphs: Paragraph[] = []
+  const paragraphs: InstanceType<typeof Paragraph>[] = []
   const lines = content.split('\n')
 
   for (const line of lines) {
@@ -61,7 +61,7 @@ async function exportDocx(content: string, title: string) {
       paragraphs.push(new Paragraph({ text: line, indent: { left: 360 } }))
     } else {
       // Handle inline bold/italic
-      const runs: TextRun[] = []
+      const runs: InstanceType<typeof TextRun>[] = []
       const parts = line.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g)
       for (const part of parts) {
         if (part.startsWith('**') && part.endsWith('**')) {
