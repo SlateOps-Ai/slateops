@@ -148,15 +148,20 @@ export function OfficeCanvas() {
     setShowDailyBriefPrompt(true)
   }, [completedTask])
 
-  // ── 1. Boot Pixi scene ──────────────────────────────────────────
+  // ── 1. Boot Pixi scene (decorative — UI does not depend on this) ──
   useEffect(() => {
     if (!canvasRef.current) return
     let cancelled = false
     const scene = new OfficeScene()
     sceneRef.current = scene
-    scene.init(canvasRef.current).then(() => {
-      if (!cancelled) setSceneReady(true)
-    })
+    scene.init(canvasRef.current)
+      .then(() => { if (!cancelled) setSceneReady(true) })
+      .catch((err) => {
+        // Pixi can fail (WebGL disabled, GPU hiccup, etc.) — log and
+        // carry on. The rest of the UI is independent of the scene.
+        // eslint-disable-next-line no-console
+        console.warn('OfficeScene init failed — rendering without it:', err)
+      })
     return () => {
       cancelled = true
       scene.destroy()
@@ -261,8 +266,8 @@ export function OfficeCanvas() {
         </div>
       </div>
 
-      {sceneReady && (
-        <>
+      {/* UI renders unconditionally — Pixi scene is decorative and may not be ready */}
+      <>
           <OfficeStatusBar
             onOpenUpgrade={()     => { setBillingOpen(true); setMarketplaceOpen(false); setConnectionsOpen(false) }}
             onOpenMarketplace={() => { setMarketplaceOpen(true); setBillingOpen(false); setConnectionsOpen(false) }}
@@ -448,8 +453,7 @@ export function OfficeCanvas() {
               />
             )}
           </AnimatePresence>
-        </>
-      )}
+      </>
 
       {firstRunLock && !showOnboardingTakeover && (
         <div className="absolute inset-0 z-[200] flex items-center justify-center bg-[#12172b]/80 backdrop-blur-md">
