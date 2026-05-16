@@ -9,8 +9,8 @@ import { SlateText } from '@/components/ui/SlateText'
 import { HandoffPath } from '@/components/ui/HandoffPath'
 import { useAuthFetch } from '@/hooks/useAuthFetch'
 import { cn } from '@/lib/utils'
-import { AGENT_ROLE_LABELS, findCatalogApp } from '@agentcity/types'
-import type { AgentStatus } from '@agentcity/types'
+import { AGENT_ROLE_LABELS, findCatalogApp, canRoleUseApp } from '@agentcity/types'
+import type { AgentStatus, AgentRole } from '@agentcity/types'
 
 const DOOR_PIXI = { x: 80, y: 680 }
 
@@ -70,6 +70,7 @@ export function AgentAvatarDock() {
   const agentPositions         = useAgentsStore((s) => s.agentPositions)
   const setAgentPosition       = useAgentsStore((s) => s.setAgentPosition)
   const resetAllAgentPositions = useAgentsStore((s) => s.resetAllAgentPositions)
+  const draggingAppName        = useAgentsStore((s) => s.draggingAppName)
   const authFetch              = useAuthFetch()
   const API                    = process.env.NEXT_PUBLIC_API_URL
 
@@ -97,9 +98,23 @@ export function AgentAvatarDock() {
   const [dropTargetAgentId, setDropTargetAgentId] = useState<string | null>(null)
 
   /** Drop a shelf icon onto this agent → create a grant. Shows a quick
-   *  speech bubble for feedback so the gesture feels acknowledged. */
+   *  speech bubble for feedback so the gesture feels acknowledged. If the
+   *  app isn't sensible for this role, refuses politely instead — the
+   *  Connections panel matrix is the override path for power users. */
   async function handleDropGrant(agentId: string, composioAppName: string) {
-    const cat = findCatalogApp(composioAppName)
+    const cat   = findCatalogApp(composioAppName)
+    const agent = agents.find((a) => a.id === agentId)
+    if (cat && agent && !canRoleUseApp(agent.role as AgentRole, cat)) {
+      const roleLabel = AGENT_ROLE_LABELS[agent.role as keyof typeof AGENT_ROLE_LABELS] ?? agent.role
+      pushAgentNotification(agentId, {
+        id:        `grant-rejected-${composioAppName}-${Date.now()}`,
+        type:      'alert',
+        headline:  `${cat.label} isn't really my thing.`,
+        body:      `${roleLabel}s don't usually use ${cat.label}. Use the Connections panel if you want to grant it anyway.`,
+        createdAt: new Date().toISOString(),
+      })
+      return
+    }
     try {
       const res = await authFetch(`${API}/api/integrations/grants`, {
         method: 'POST',
@@ -364,6 +379,10 @@ export function AgentAvatarDock() {
         }
 
         const isDropTarget = dropTargetAgentId === agent.id
+        // Is the currently-dragged app a sensible fit for this agent's role?
+        // Used to color the drop ring green vs amber during drag-over.
+        const draggedApp     = draggingAppName ? findCatalogApp(draggingAppName) : null
+        const dropFitOk      = !draggedApp || canRoleUseApp(agent.role as AgentRole, draggedApp)
 
         return (
           <motion.button
@@ -482,8 +501,10 @@ export function AgentAvatarDock() {
             {/* Avatar ring */}
             <div className={cn(
               'relative w-[72px] h-[72px] rounded-full border-2 transition-all duration-200 shadow-lg',
-              isDropTarget
-                ? 'border-panel-accent ring-4 ring-panel-accent/40 scale-110 shadow-panel-accent/60'
+              isDropTarget && dropFitOk
+                ? 'border-emerald-400 ring-4 ring-emerald-400/40 scale-110 shadow-emerald-400/40'
+                : isDropTarget && !dropFitOk
+                ? 'border-amber-400 ring-4 ring-amber-400/30 scale-105 shadow-amber-400/30'
                 : isSelected
                 ? 'border-panel-accent shadow-panel-accent/30'
                 : 'border-white/20 group-hover:border-white/50',

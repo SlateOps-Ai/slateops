@@ -29,9 +29,10 @@ interface Props {
  * media type — keep this in sync with AgentAvatarDock's onDrop handler.
  */
 export function ConnectionsShelf({ onOpenConnections }: Props) {
-  const authFetch = useAuthFetch()
-  const API       = process.env.NEXT_PUBLIC_API_URL
-  const agents    = useAgentsStore((s) => s.agents)
+  const authFetch          = useAuthFetch()
+  const API                = process.env.NEXT_PUBLIC_API_URL
+  const agents             = useAgentsStore((s) => s.agents)
+  const setDraggingAppName = useAgentsStore((s) => s.setDraggingAppName)
 
   const [connections, setConnections] = useState<Connection[]>([])
   const [dragging,    setDragging]    = useState<string | null>(null)
@@ -87,8 +88,9 @@ export function ConnectionsShelf({ onOpenConnections }: Props) {
                   e.dataTransfer.setData('text/composio-label', c.label)
                   e.dataTransfer.effectAllowed = 'link'
                   setDragging(c.composioAppName)
+                  setDraggingAppName(c.composioAppName)
                 }}
-                onDragEnd={() => setDragging(null)}
+                onDragEnd={() => { setDragging(null); setDraggingAppName(null) }}
                 title={`Drag onto an agent to grant ${c.label}`}
                 className={cn(
                   'flex items-center justify-center w-8 h-8 rounded-full border transition-all cursor-grab active:cursor-grabbing',

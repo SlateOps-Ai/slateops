@@ -53,6 +53,7 @@ interface AgentsState {
   agentNotifications:     Record<string, AgentNotification | null>
   agentPositions:         Record<string, { x: number; y: number }>
   pendingDraft:           { content: string; platform: string; suggestedAt?: string } | null
+  draggingAppName:        string | null
 
   setAgents:               (agents: Agent[]) => void
   addAgent:                (agent: Agent) => void
@@ -79,6 +80,7 @@ interface AgentsState {
   setPendingDraft:         (draft: { content: string; platform: string; suggestedAt?: string } | null) => void
   setAgentPosition:        (agentId: string, offset: { x: number; y: number }) => void
   resetAllAgentPositions:  () => void
+  setDraggingAppName:      (composioAppName: string | null) => void
 }
 
 export interface AgentNotification {
@@ -124,6 +126,7 @@ export const useAgentsStore = create<AgentsState>((set) => ({
   agentNotifications:     {},
   pendingDraft:           null,
   agentPositions:         {},
+  draggingAppName:        null,
 
   setAgents: (agents) => set({ agents }),
 
@@ -202,4 +205,5 @@ export const useAgentsStore = create<AgentsState>((set) => ({
 
   setAgentPosition:       (agentId, offset) => set((s) => ({ agentPositions: { ...s.agentPositions, [agentId]: offset } })),
   resetAllAgentPositions: ()                => set({ agentPositions: {} }),
+  setDraggingAppName:     (composioAppName) => set({ draggingAppName: composioAppName }),
 }))

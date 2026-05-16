@@ -9,6 +9,7 @@ export const ROLE_TOOLS: Record<AgentRole, string[]> = {
     'GMAIL_SEND_EMAIL',
     'GOOGLECALENDAR_LIST_EVENTS',
     'GOOGLECALENDAR_CREATE_EVENT',
+    'WHATSAPP_SEND_MESSAGE',
   ],
   RESEARCH_ANALYST: [
     'SERPAPI_SEARCH',
@@ -28,6 +29,8 @@ export const ROLE_TOOLS: Record<AgentRole, string[]> = {
   SALES_PROSPECTOR: [
     'SERPAPI_SEARCH',
     'BROWSERBASE_SCRAPE_URL',
+    'GMAIL_SEND_EMAIL',
+    'WHATSAPP_SEND_MESSAGE',
   ],
   OPS_COORDINATOR: [
     'GOOGLECALENDAR_LIST_EVENTS',
@@ -50,6 +53,8 @@ export const ROLE_TOOLS: Record<AgentRole, string[]> = {
     'GMAIL_GET_THREAD',
     'GMAIL_CREATE_DRAFT',
     'GMAIL_SEND_EMAIL',
+    'WHATSAPP_SEND_MESSAGE',
+    'WHATSAPP_LIST_MESSAGES',
   ],
   DATA_ANALYST: [
     'SERPAPI_SEARCH',
@@ -66,6 +71,7 @@ export const ROLE_TOOLS: Record<AgentRole, string[]> = {
     'TIKTOK_UPLOAD_VIDEO',
     'THREADS_CREATE_POST',
     'PINTEREST_CREATE_PIN',
+    'WHATSAPP_SEND_MESSAGE',
   ],
 }
 
@@ -83,6 +89,7 @@ export const DESTRUCTIVE_TOOLS = new Set([
   'TIKTOK_UPLOAD_VIDEO',
   'THREADS_CREATE_POST',
   'PINTEREST_CREATE_PIN',
+  'WHATSAPP_SEND_MESSAGE',
 ])
 
 export function requiresApproval(toolName: string): boolean {

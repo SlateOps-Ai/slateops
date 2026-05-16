@@ -2,7 +2,8 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { ComposioToolSet } from 'composio-core'
 import { prisma } from '../../lib/prisma.js'
-import { INTEGRATION_CATALOG, findCatalogApp } from '@agentcity/types'
+import { INTEGRATION_CATALOG, findCatalogApp, appsForRoles } from '@agentcity/types'
+import type { AgentRole } from '@agentcity/types'
 import { callAnthropic } from '../../lib/llm-usage.js'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -372,7 +373,10 @@ export default async function integrationsRoute(app: FastifyInstance) {
 
     try {
       const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-      const catalog = INTEGRATION_CATALOG.map((a) => `${a.composioAppName} — ${a.label} (${a.description})`).join('\n')
+      // Constrain the menu to apps that any of the composed agents could plausibly use.
+      const roles = agents.map((a) => a.role as AgentRole).filter(Boolean)
+      const allowed = appsForRoles(roles)
+      const catalog = allowed.map((a) => `${a.composioAppName} — ${a.label} (${a.description})`).join('\n')
       const resp: any = await callAnthropic(
         client,
         {
@@ -409,7 +413,10 @@ export default async function integrationsRoute(app: FastifyInstance) {
       )
       const block = (resp.content as any[]).find((b: any) => b.type === 'tool_use')
       const raw   = (block?.input as { appIds?: string[] } | undefined)?.appIds ?? []
-      const valid = raw.filter((id) => !!findCatalogApp(id)).slice(0, 5)
+      // Re-validate against the role-constrained allowed set so a misbehaving
+      // LLM can't suggest off-role apps even if it tries.
+      const allowedNames = new Set(allowed.map((a) => a.composioAppName))
+      const valid = raw.filter((id) => allowedNames.has(id)).slice(0, 5)
       if (valid.length === 0) return reply.send({ suggestions: keywordFallback() })
       return reply.send({ suggestions: valid })
     } catch {

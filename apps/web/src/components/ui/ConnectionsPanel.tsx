@@ -5,8 +5,8 @@ import { motion } from 'framer-motion'
 import { X, Plug, Plus, Trash2, Loader2, Check } from 'lucide-react'
 import { useAuthFetch } from '@/hooks/useAuthFetch'
 import { useAgentsStore } from '@/stores/agents.store'
-import { INTEGRATION_CATALOG, findCatalogApp } from '@agentcity/types'
-import type { CatalogApp } from '@agentcity/types'
+import { INTEGRATION_CATALOG, findCatalogApp, canRoleUseApp, AGENT_ROLE_LABELS } from '@agentcity/types'
+import type { CatalogApp, AgentRole } from '@agentcity/types'
 import { cn } from '@/lib/utils'
 
 interface Connection {
@@ -108,14 +108,26 @@ export function ConnectionsPanel({ onClose }: Props) {
     refresh()
   }
 
-  async function toggleGrant(agentId: string, app: CatalogApp, currentGrant: Grant | undefined) {
+  async function toggleGrant(
+    agentId: string,
+    app: CatalogApp,
+    currentGrant: Grant | undefined,
+    fitOk: boolean,
+  ) {
     if (currentGrant) {
-      // Revoke
       try {
         await authFetch(`${API}/api/integrations/grants/${currentGrant.id}`, { method: 'DELETE' })
       } catch { /* ignore */ }
     } else {
-      // Grant — requires connection to exist
+      // Granting off-role from the matrix needs an explicit nudge so the
+      // user knows they're overriding our default. The matrix is the
+      // power-user surface; we want them to think before they grant.
+      if (!fitOk) {
+        const ok = window.confirm(
+          `${app.label} isn't a typical fit for this agent's role.\n\nGrant access anyway?`,
+        )
+        if (!ok) return
+      }
       try {
         await authFetch(`${API}/api/integrations/grants`, {
           method: 'POST',
@@ -238,24 +250,35 @@ export function ConnectionsPanel({ onClose }: Props) {
                       </tr>
                     </thead>
                     <tbody>
-                      {agents.map((agent) => (
+                      {agents.map((agent) => {
+                        const roleLabel = AGENT_ROLE_LABELS[agent.role as keyof typeof AGENT_ROLE_LABELS] ?? agent.role
+                        return (
                         <tr key={agent.id} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
-                          <td className="py-2 pr-2 text-white truncate max-w-[100px]">{agent.name}</td>
+                          <td className="py-2 pr-2 text-white truncate max-w-[100px]" title={roleLabel}>{agent.name}</td>
                           {connections.map((c) => {
-                            const g = grants.find((gx) => gx.agentId === agent.id && gx.integration.composioAppName === c.composioAppName)
-                            const app = findCatalogApp(c.composioAppName)
+                            const g     = grants.find((gx) => gx.agentId === agent.id && gx.integration.composioAppName === c.composioAppName)
+                            const app   = findCatalogApp(c.composioAppName)
                             if (!app) return <td key={c.id} className="text-center px-1 py-2">—</td>
+                            const fitOk = canRoleUseApp(agent.role as AgentRole, app)
                             return (
-                              <td key={c.id} className="text-center px-1 py-2">
+                              <td key={c.id} className={cn('text-center px-1 py-2', !fitOk && !g && 'opacity-40')}>
                                 <button
-                                  onClick={() => toggleGrant(agent.id, app, g)}
+                                  onClick={() => toggleGrant(agent.id, app, g, fitOk)}
                                   className={cn(
                                     'w-5 h-5 rounded-md border transition-all inline-flex items-center justify-center',
                                     g
                                       ? 'bg-emerald-400/15 border-emerald-400/40 text-emerald-400 hover:bg-emerald-400/25'
-                                      : 'bg-white/[0.03] border-white/10 text-transparent hover:border-panel-accent/40',
+                                      : fitOk
+                                      ? 'bg-white/[0.03] border-white/10 text-transparent hover:border-panel-accent/40'
+                                      : 'bg-white/[0.02] border-white/8 border-dashed text-transparent hover:border-amber-400/40',
                                   )}
-                                  title={g ? `Revoke ${app.label} for ${agent.name}` : `Grant ${app.label} to ${agent.name}`}
+                                  title={
+                                    g
+                                      ? `Revoke ${app.label} for ${agent.name}`
+                                      : fitOk
+                                      ? `Grant ${app.label} to ${agent.name}`
+                                      : `${roleLabel}s don't usually use ${app.label} — click to grant anyway`
+                                  }
                                 >
                                   {g && <Check size={11} />}
                                 </button>
@@ -263,7 +286,8 @@ export function ConnectionsPanel({ onClose }: Props) {
                             )
                           })}
                         </tr>
-                      ))}
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
