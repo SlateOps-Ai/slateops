@@ -134,10 +134,11 @@ export default async function agentsRoute(app: FastifyInstance) {
     return reply.code(201).send({ agent })
   })
 
-  // Update agent config (pattern, scope, isPublic)
+  // Update agent config (pattern, scope, isPublic, name, …)
   app.patch('/api/agents/:id', async (req, reply) => {
     const { id } = req.params as { id: string }
     const patchSchema = z.object({
+      name:         z.string().min(1).max(40).optional(),
       pattern:      z.enum(['COPILOT', 'TRIAGE', 'TRANSACTION', 'MONITOR', 'DECISION_SUPPORT', 'AUTONOMOUS']).optional(),
       scopeConfig:  scopeConfigSchema.optional(),
       isPublic:     z.boolean().optional(),
@@ -154,6 +155,7 @@ export default async function agentsRoute(app: FastifyInstance) {
     const updated = await prisma.agent.update({
       where: { id },
       data:  {
+        ...(body.name         !== undefined && { name:         body.name.trim() }),
         ...(body.pattern      !== undefined && { pattern:      body.pattern }),
         ...(body.scopeConfig  !== undefined && { scopeConfig:  body.scopeConfig }),
         ...(body.isPublic     !== undefined && { isPublic:     body.isPublic }),

@@ -600,7 +600,44 @@ function PickerAgentCard({
   const API                    = process.env.NEXT_PUBLIC_API_URL
   const draggingAppName        = useAgentsStore((s) => s.draggingAppName)
   const pushAgentNotification  = useAgentsStore((s) => s.pushAgentNotification)
+  const updateAgent            = useAgentsStore((s) => s.updateAgent)
   const [dropHover, setDropHover] = useState(false)
+  const [editing,   setEditing]   = useState(false)
+  const [editValue, setEditValue] = useState(agent.name)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }
+  }, [editing])
+
+  async function saveName() {
+    const next = editValue.trim()
+    setEditing(false)
+    if (!next || next === agent.name) {
+      setEditValue(agent.name)
+      return
+    }
+    // Optimistic local update — revert on API failure
+    updateAgent(agent.id, { name: next })
+    try {
+      const res = await authFetch(`${API}/api/agents/${agent.id}`, {
+        method: 'PATCH',
+        body:   JSON.stringify({ name: next }),
+      })
+      if (!res.ok) throw new Error(`${res.status}`)
+    } catch {
+      updateAgent(agent.id, { name: agent.name })
+      setEditValue(agent.name)
+    }
+  }
+
+  function cancelEdit() {
+    setEditValue(agent.name)
+    setEditing(false)
+  }
 
   const draggedApp = draggingAppName ? findCatalogApp(draggingAppName) : null
   const dropFitOk  = !draggedApp || canRoleUseApp(agent.role as AgentRole, draggedApp)
@@ -642,7 +679,11 @@ function PickerAgentCard({
 
   return (
     <motion.button
-      onClick={onClick}
+      onClick={(e) => {
+        // Don't navigate while the user is renaming this agent
+        if (editing) { e.stopPropagation(); return }
+        onClick()
+      }}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes('text/composio-app')) {
           e.preventDefault()
@@ -701,9 +742,39 @@ function PickerAgentCard({
           />
         )}
       </motion.div>
-      <p className={cn('text-[12px] font-semibold whitespace-nowrap', isSelected ? 'text-white' : 'text-white/80')}>
-        {agent.name}
-      </p>
+      {editing ? (
+        <input
+          ref={inputRef}
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            if (e.key === 'Enter')  { e.preventDefault(); saveName() }
+            if (e.key === 'Escape') { e.preventDefault(); cancelEdit() }
+          }}
+          onBlur={saveName}
+          maxLength={40}
+          className="w-[96px] text-center text-[12px] font-semibold bg-white/[0.06] border border-panel-accent/40 rounded-md px-1.5 py-0.5 text-white outline-none focus:border-panel-accent"
+        />
+      ) : (
+        <div className="relative flex items-center gap-1 group/name">
+          <p className={cn('text-[12px] font-semibold whitespace-nowrap', isSelected ? 'text-white' : 'text-white/80')}>
+            {agent.name}
+          </p>
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => { e.stopPropagation(); setEditValue(agent.name); setEditing(true) }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="opacity-0 group-hover/name:opacity-100 text-panel-muted hover:text-white transition-opacity cursor-pointer"
+            title="Rename"
+          >
+            <Pencil size={9} />
+          </span>
+        </div>
+      )}
       <p className="text-[10px] text-panel-muted/80 truncate max-w-[100px]">{role}</p>
       <p className={cn(
         'text-[9px] font-medium whitespace-nowrap',
