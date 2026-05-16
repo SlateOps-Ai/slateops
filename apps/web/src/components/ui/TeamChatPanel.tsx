@@ -844,7 +844,7 @@ export function TeamChatPanel() {
             width:     'min(1200px, calc(100vw - 240px))',
             height:    'calc(100vh - 80px)',
           }}
-          className="fixed top-[60px] left-1/2 z-50 min-w-[560px] min-h-[400px] max-w-[calc(100vw-220px)] max-h-[calc(100vh-60px)] flex flex-col rounded-2xl border border-white/10 bg-panel-bg shadow-2xl resize overflow-hidden"
+          className="fixed top-[60px] left-1/2 z-50 min-w-[560px] min-h-[400px] max-w-[calc(100vw-220px)] max-h-[calc(100vh-60px)] flex flex-col rounded-2xl border border-white/10 bg-[#12172b] shadow-2xl resize overflow-hidden"
         >
           {/* ── Panel-level drag strip + window controls ─────────────────── */}
           <div
