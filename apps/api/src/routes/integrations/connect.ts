@@ -99,12 +99,15 @@ export default async function integrationsRoute(app: FastifyInstance) {
       // eslint-disable-next-line no-console
       console.log('[connect] using authConfigId=', active.id)
 
-      const conn = await composio.connectedAccounts.initiate(userId, active.id, {
+      // Composio-managed auth configs require the .link() endpoint (the
+      // .initiate() path returns 400 with "Creating connections on this
+      // endpoint for Composio-managed OAuth configs is no longer supported").
+      const conn = await composio.connectedAccounts.link(userId, active.id, {
         callbackUrl,
-        allowMultiple: true, // accept re-connecting even if a stale ACTIVE row exists
-      })
+        allowMultiple: true,
+      } as any)
       // eslint-disable-next-line no-console
-      console.log('[connect] initiate OK, redirectUrl=', conn.redirectUrl, ' connectedAccountId=', conn.id)
+      console.log('[connect] link OK, redirectUrl=', conn.redirectUrl, ' connectedAccountId=', conn.id)
 
       if (!conn.redirectUrl) {
         return reply.code(502).send({
