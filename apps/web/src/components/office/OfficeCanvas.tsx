@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Settings, GitBranch, Plug, Zap, Brain, Users, Sparkles, BookOpen, ChevronDown, BookMarked, Smartphone, Network, TrendingUp, Shield } from 'lucide-react'
-import { SlateCaretLogo } from '@/components/branding/SlateCaretLogo'
+import { TeamTileLogo } from '@/components/branding/TeamTileLogo'
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
 import { OfficeScene } from '@/lib/pixi/scene'
@@ -199,8 +199,8 @@ export function OfficeCanvas() {
         {/* Icon + wordmark */}
         <div className="flex items-center gap-5">
           <div className="relative shrink-0">
-            <div className="absolute inset-0 rounded-2xl bg-amber-400/25 blur-2xl scale-150" />
-            <SlateCaretLogo size={72} variant="amber" className="relative" />
+            <div className="absolute inset-0 rounded-2xl bg-panel-accent/25 blur-2xl scale-150" />
+            <TeamTileLogo size={72} variant="blue" className="relative" />
           </div>
           {/* Wordmark — lowercase with a blinking caret divider, echoing the
               SlateText typewriter pattern. The caret is the brand mark.
@@ -320,7 +320,7 @@ export function OfficeCanvas() {
               <div className="absolute left-3 top-3 bottom-3 z-40 w-[184px] flex flex-col bg-panel-bg/96 backdrop-blur-md rounded-2xl shadow-2xl overflow-hidden antialiased subpixel-antialiased">
                 {/* Wordmark */}
                 <div className="flex items-center gap-2.5 px-4 py-3 border-b border-white/[0.06] shrink-0">
-                  <SlateCaretLogo size={22} variant="amber" />
+                  <TeamTileLogo size={22} variant="blue" />
                   <span className="text-[13px] font-bold text-white tracking-tight flex items-baseline">
                     <span>slate</span>
                     <span
@@ -467,7 +467,7 @@ export function OfficeCanvas() {
         <div className="absolute inset-0 z-[200] flex items-center justify-center bg-[#12172b]/80 backdrop-blur-md">
           <div className="w-full max-w-sm mx-auto text-center space-y-6 px-6">
             <div className="mx-auto">
-              <SlateCaretLogo size={64} variant="amber" />
+              <TeamTileLogo size={64} variant="blue" />
             </div>
             <div>
               <h2 className="text-white text-2xl font-semibold mb-2">Your office is empty.</h2>
