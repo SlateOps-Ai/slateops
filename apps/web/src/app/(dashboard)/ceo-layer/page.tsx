@@ -97,6 +97,65 @@ function timeLeft(iso: string) {
   const m = Math.floor(diff / 60000)
   return m < 60 ? `${m}m left` : `${Math.floor(m / 60)}h left`
 }
+interface Anomaly {
+  tone: 'positive' | 'warning' | 'neutral'
+  icon: React.ReactNode
+  text: string
+}
+
+/**
+ * Detect "what changed" callouts from the day's stats versus the rolling
+ * average. The point isn't statistical rigor — it's flagging the 2-3 things
+ * a CEO would say "huh, that's worth a look" about. Empty array → nothing
+ * abnormal, hide the section entirely (silence is the absence of news).
+ */
+function detectAnomalies(analytics: AnalyticsSummary | null, exec: ExecData | null): Anomaly[] {
+  const out: Anomaly[] = []
+  if (!analytics || !exec) return out
+
+  // Today vs the rolling 6-day average
+  const days = analytics.dailyVolume ?? []
+  if (days.length >= 4) {
+    const past6     = days.slice(-7, -1)
+    const todayCnt  = analytics.todayComplete
+    const avgCnt    = past6.length ? past6.reduce((s, d) => s + d.count, 0) / past6.length : 0
+    const todayCost = days[days.length - 1]?.costUsd ?? 0
+    const avgCost   = past6.length ? past6.reduce((s, d) => s + d.costUsd, 0) / past6.length : 0
+
+    if (avgCnt >= 1 && todayCnt >= avgCnt * 1.5) {
+      const pct = Math.round((todayCnt / avgCnt - 1) * 100)
+      out.push({ tone: 'positive', icon: <TrendingUp size={11} />, text: `Big day — ${todayCnt} tasks done, ${pct}% above your weekly average.` })
+    } else if (avgCnt >= 3 && todayCnt <= avgCnt * 0.5 && new Date().getHours() >= 14) {
+      out.push({ tone: 'warning', icon: <AlertTriangle size={11} />, text: `Slower than usual — ${todayCnt} tasks today vs your usual ${Math.round(avgCnt)}.` })
+    }
+    if (avgCost >= 0.05 && todayCost >= avgCost * 2.5) {
+      const x = (todayCost / avgCost).toFixed(1)
+      out.push({ tone: 'warning', icon: <DollarSign size={11} />, text: `$${todayCost.toFixed(2)} spent today — about ${x}× normal. Worth a look.` })
+    }
+  }
+
+  // Failures today
+  const fails = exec.recentFailed?.length ?? 0
+  if (fails >= 2) {
+    out.push({ tone: 'warning', icon: <XCircle size={11} />, text: `${fails} task${fails === 1 ? '' : 's'} failed recently — worth checking in.` })
+  }
+
+  // Top performer (only call out if it's clearly a standout)
+  const sorted = [...exec.agents].sort((a, b) => b.tasks.complete - a.tasks.complete)
+  const top    = sorted[0]
+  if (top && top.tasks.complete >= 5 && top.tasks.successRate >= 90) {
+    out.push({ tone: 'positive', icon: <Star size={11} />, text: `${top.name} is on fire — ${top.tasks.complete} done at ${top.tasks.successRate}% success.` })
+  }
+
+  // Struggling agent (enough volume to be meaningful)
+  const struggling = exec.agents.find((a) => a.tasks.total >= 5 && a.tasks.successRate < 60)
+  if (struggling) {
+    out.push({ tone: 'warning', icon: <AlertCircle size={11} />, text: `${struggling.name}'s success rate dropped to ${struggling.tasks.successRate}%.` })
+  }
+
+  return out
+}
+
 /**
  * Render an agent's status as a single in-character sentence — the kind of
  * thing they'd actually say at a standup. Picks a template based on what's
@@ -380,6 +439,9 @@ export default function CeoLayerPage() {
   const alerts       = [...(exec?.pendingActions ?? []), ...(exec?.recentFailed ?? [])]
   const lastUpdated   = lastFetch ? `${Math.floor((Date.now() - lastFetch.getTime()) / 1000)}s ago` : null
 
+  // Anomaly callouts — recomputed whenever analytics or exec change.
+  const anomalies = detectAnomalies(analytics, exec)
+
   // ── Hero state: what *you* need to attend to right now ─────────────────────
   const pendingCount      = data?.pendingCount ?? 0
   const pendingAgentNames = Array.from(new Set((data?.pendingApprovals ?? []).map((a) => a.agentName)))
@@ -513,6 +575,43 @@ export default function CeoLayerPage() {
                     “{agentVoiceLine(agent)}”
                   </p>
                 </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── What changed — anomaly callouts ────────────────────────────── */}
+      {!loading && anomalies.length > 0 && (
+        <section className="shrink-0 px-6 py-4 border-b border-white/[0.05] bg-[#080b14]">
+          <p className="text-[10px] uppercase tracking-widest text-white/30 font-semibold mb-2">What changed</p>
+          <div className="flex gap-2 overflow-x-auto scrollbar-none">
+            {anomalies.map((a, i) => (
+              <div
+                key={i}
+                className={cn(
+                  'flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl border shrink-0 min-w-[300px] max-w-[440px]',
+                  a.tone === 'positive' ? 'bg-emerald-400/[0.05] border-emerald-400/20' :
+                  a.tone === 'warning'  ? 'bg-amber-400/[0.05] border-amber-400/20'  :
+                                          'bg-white/[0.02] border-white/[0.07]',
+                )}
+              >
+                <span className={cn(
+                  'mt-0.5 shrink-0',
+                  a.tone === 'positive' ? 'text-emerald-400' :
+                  a.tone === 'warning'  ? 'text-amber-400'  :
+                                          'text-white/40',
+                )}>
+                  {a.icon}
+                </span>
+                <p className={cn(
+                  'text-[12px] leading-relaxed',
+                  a.tone === 'positive' ? 'text-emerald-300/90' :
+                  a.tone === 'warning'  ? 'text-amber-300/90'  :
+                                          'text-white/75',
+                )}>
+                  {a.text}
+                </p>
               </div>
             ))}
           </div>
