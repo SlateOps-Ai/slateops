@@ -71,6 +71,17 @@ interface AnalyticsSummary {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+function formatClockTime(iso: string): string {
+  return new Date(iso)
+    .toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+    .toLowerCase()
+    .replace(' ', '')
+}
+function narrativeVerb(item: ActivityItem): string {
+  if (item.status === 'COMPLETE')  return 'finished'
+  if (item.status === 'FAILED')    return 'hit a snag on'
+  return 'cancelled'   // CANCELLED
+}
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime()
   const m = Math.floor(diff / 60000)
@@ -979,38 +990,31 @@ export default function CeoLayerPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="p-3 space-y-1">
-                      {filtered.map((item) => (
-                        <div key={item.id} className="group flex items-start gap-3 rounded-xl px-3 py-3 hover:bg-white/[0.025] transition-colors cursor-default">
-                          <div className={cn('mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center shrink-0',
-                            item.status === 'COMPLETE' ? 'bg-emerald-400/10 border border-emerald-400/15' :
-                            item.status === 'FAILED'   ? 'bg-red-400/10 border border-red-400/15' :
-                            'bg-white/[0.03] border border-white/[0.07]'
-                          )}>
-                            {item.status === 'COMPLETE'  && <CheckCircle2 size={12} className="text-emerald-400" />}
-                            {item.status === 'FAILED'    && <XCircle size={12} className="text-red-400" />}
-                            {item.status === 'CANCELLED' && <Ban size={12} className="text-white/25" />}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-white/75 text-xs font-medium leading-snug">{item.title}</p>
-                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                              <span className="text-white/25 text-[10px]">{item.agentName}</span>
-                              <span className="text-white/10 text-[10px]">·</span>
-                              <span className="text-white/25 text-[10px]">{timeAgo(item.completedAt)}</span>
+                    <div className="px-3 py-2 space-y-0.5">
+                      {filtered.map((item) => {
+                        const statusTint =
+                          item.status === 'COMPLETE'  ? 'text-emerald-400/70' :
+                          item.status === 'FAILED'    ? 'text-red-400/80' :
+                          'text-white/25'
+                        return (
+                          <div key={item.id} className="group flex items-baseline gap-3 rounded-md px-2 py-1.5 hover:bg-white/[0.025] transition-colors">
+                            <span className="text-white/30 text-[10px] font-mono tabular-nums shrink-0 w-[58px]">
+                              {formatClockTime(item.completedAt)}
+                            </span>
+                            <p className="flex-1 text-[12px] leading-relaxed text-white/65">
+                              <span className="text-white font-semibold">{item.agentName}</span>{' '}
+                              <span className={statusTint}>{narrativeVerb(item)}</span>{' '}
+                              <span className="text-white/80">{item.title}</span>
                               {item.costUsd != null && item.costUsd > 0 && (
-                                <><span className="text-white/10 text-[10px]">·</span><span className="text-[#4d7fff]/50 text-[10px]">${item.costUsd.toFixed(4)}</span></>
+                                <span className="text-white/25 text-[10px] ml-1.5 tabular-nums">({`$${item.costUsd.toFixed(3)}`})</span>
                               )}
-                            </div>
+                              {item.status === 'FAILED' && (
+                                <span className="text-red-400/70 text-[10px] ml-1.5 font-medium">— flagged</span>
+                              )}
+                            </p>
                           </div>
-                          <span className={cn('shrink-0 mt-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-md border',
-                            item.status === 'COMPLETE' ? 'text-emerald-400 bg-emerald-400/8 border-emerald-400/15' :
-                            item.status === 'FAILED'   ? 'text-red-400 bg-red-400/8 border-red-400/15' :
-                            'text-white/25 bg-white/[0.02] border-white/[0.07]'
-                          )}>
-                            {item.status.charAt(0) + item.status.slice(1).toLowerCase()}
-                          </span>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   )}
                 </div>
