@@ -314,10 +314,10 @@ export function OfficeCanvas() {
                 {/* Control Layer CTA */}
                 <button
                   onClick={() => router.push('/ceo-layer')}
-                  className="mx-3 mt-2 mb-1 flex items-center gap-2 px-2.5 py-2 rounded-lg bg-amber-400/10 border border-amber-400/20 hover:bg-amber-400/15 transition-colors"
+                  className="mx-3 mt-2 mb-1 flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-amber-400/10 border border-amber-400/20 hover:bg-amber-400/15 transition-colors"
                 >
-                  <Shield size={11} className="text-amber-400 shrink-0" />
-                  <span className="text-[13px] font-semibold text-amber-300 flex-1 text-left">CEO Control Center</span>
+                  <Shield size={14} className="text-amber-400 shrink-0" />
+                  <span className="text-[15px] font-bold text-amber-300 flex-1 text-left tracking-tight antialiased">CEO Control Center</span>
                   {pendingCount > 0 && (
                     <span className="w-4 h-4 rounded-full bg-amber-400 text-[#12172b] text-[9px] font-bold flex items-center justify-center shrink-0">
                       {pendingCount > 9 ? '9+' : pendingCount}
