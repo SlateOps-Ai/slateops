@@ -328,7 +328,8 @@ export function OfficeCanvas() {
                     <div key={group} className="mb-1">
                       <p className="px-4 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-[0.15em] text-white/40">{group}</p>
                       {items.map(({ icon, c, label, active, onClick }) => {
-                        const iconColor = c.split(' ')[0] // e.g. 'text-blue-400'
+                        const iconColor    = c.split(' ')[0] // e.g. 'text-blue-400'
+                        const activeBorder = c.split(' ').find((cls) => cls.startsWith('border-')) ?? 'border-white/20'
                         return (
                         <button
                           key={label}
@@ -339,8 +340,11 @@ export function OfficeCanvas() {
                           )}
                         >
                           {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-panel-accent" />}
-                          <div className={cn('w-[26px] h-[26px] rounded-lg border flex items-center justify-center shrink-0 transition-all', active ? c : 'bg-white/[0.03] border-white/[0.08] group-hover:bg-white/[0.06]')}>
-                            <span className={cn('transition-all', iconColor, active ? 'opacity-100' : 'opacity-50 group-hover:opacity-90')}>
+                          <div className={cn(
+                            'w-[28px] h-[28px] rounded-lg border flex items-center justify-center shrink-0 transition-all bg-white shadow-sm',
+                            active ? activeBorder : 'border-white/15 group-hover:border-white/30',
+                          )}>
+                            <span className={cn('transition-all leading-none', iconColor)}>
                               {icon}
                             </span>
                           </div>
