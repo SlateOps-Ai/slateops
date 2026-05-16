@@ -408,7 +408,7 @@ export function OfficeCanvas() {
                               {icon}
                             </span>
                           </div>
-                          <span className={cn('text-[13px] font-semibold truncate text-white antialiased', active && 'tracking-tight')}>
+                          <span className={cn('text-[13px] font-semibold truncate text-amber-400 antialiased', active && 'tracking-tight')}>
                             {label}
                           </span>
                         </button>
