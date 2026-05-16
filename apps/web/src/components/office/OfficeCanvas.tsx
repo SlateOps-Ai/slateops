@@ -24,6 +24,7 @@ import { GamificationPanel } from '@/components/ui/GamificationPanel'
 import { AchievementToast } from '@/components/ui/AchievementToast'
 import { UpgradePanel } from '@/components/ui/UpgradePanel'
 import { ConnectionsPanel } from '@/components/ui/ConnectionsPanel'
+import { ConnectionsShelf } from '@/components/ui/ConnectionsShelf'
 import { AgentMemoryPanel } from '@/components/ui/AgentMemoryPanel'
 import { TeamPanel } from '@/components/ui/TeamPanel'
 import { ContentSchedulerPanel } from '@/components/ui/ContentSchedulerPanel'
@@ -235,6 +236,7 @@ export function OfficeCanvas() {
             onOpenConnections={() => { setConnectionsOpen(true); setBillingOpen(false); setMarketplaceOpen(false) }}
           />
           <AgentAvatarDock />
+          <ConnectionsShelf onOpenConnections={() => { setConnectionsOpen(true); setBillingOpen(false); setMarketplaceOpen(false) }} />
           <ApprovalToast />
           <WelcomeBackPanel />
           <TaskResultPanel />

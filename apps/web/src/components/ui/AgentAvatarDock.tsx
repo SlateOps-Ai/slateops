@@ -9,7 +9,7 @@ import { SlateText } from '@/components/ui/SlateText'
 import { HandoffPath } from '@/components/ui/HandoffPath'
 import { useAuthFetch } from '@/hooks/useAuthFetch'
 import { cn } from '@/lib/utils'
-import { AGENT_ROLE_LABELS } from '@agentcity/types'
+import { AGENT_ROLE_LABELS, findCatalogApp } from '@agentcity/types'
 import type { AgentStatus } from '@agentcity/types'
 
 const DOOR_PIXI = { x: 80, y: 680 }
@@ -66,6 +66,7 @@ export function AgentAvatarDock() {
   const markAgentArrived       = useAgentsStore((s) => s.markAgentArrived)
   const agentNotifications     = useAgentsStore((s) => s.agentNotifications)
   const dismissAgentNotification = useAgentsStore((s) => s.dismissAgentNotification)
+  const pushAgentNotification    = useAgentsStore((s) => s.pushAgentNotification)
   const agentPositions         = useAgentsStore((s) => s.agentPositions)
   const setAgentPosition       = useAgentsStore((s) => s.setAgentPosition)
   const resetAllAgentPositions = useAgentsStore((s) => s.resetAllAgentPositions)
@@ -91,6 +92,35 @@ export function AgentAvatarDock() {
 
   // Pending OAuth popups per agent — we auto-grant once the popup returns
   const pendingOauthRef = useRef<Record<string, { agentId: string; requestId: string; composioAppName: string }>>({})
+
+  // The agentId currently being hovered by a shelf drag (for the drop ring)
+  const [dropTargetAgentId, setDropTargetAgentId] = useState<string | null>(null)
+
+  /** Drop a shelf icon onto this agent → create a grant. Shows a quick
+   *  speech bubble for feedback so the gesture feels acknowledged. */
+  async function handleDropGrant(agentId: string, composioAppName: string) {
+    const cat = findCatalogApp(composioAppName)
+    try {
+      const res = await authFetch(`${API}/api/integrations/grants`, {
+        method: 'POST',
+        body:   JSON.stringify({ agentId, composioAppName, mode: 'ALWAYS' }),
+      })
+      if (!res.ok) throw new Error(`${res.status}`)
+      pushAgentNotification(agentId, {
+        id:        `granted-${composioAppName}-${Date.now()}`,
+        type:      'opportunity',
+        headline:  `Thanks — I can use ${cat?.label ?? composioAppName} now.`,
+        createdAt: new Date().toISOString(),
+      })
+    } catch {
+      pushAgentNotification(agentId, {
+        id:        `grant-failed-${Date.now()}`,
+        type:      'alert',
+        headline:  `Couldn't add ${cat?.label ?? composioAppName} — please try again.`,
+        createdAt: new Date().toISOString(),
+      })
+    }
+  }
 
   // Listen for OAuth popup completion (from /oauth-callback) and finalize
   // the grant by recording the connection + responding to the request.
@@ -333,11 +363,31 @@ export function AgentAvatarDock() {
           window.addEventListener('mouseup', onUp)
         }
 
+        const isDropTarget = dropTargetAgentId === agent.id
+
         return (
           <motion.button
             key={agent.id}
             onClick={handleClick}
             onMouseDown={handleMouseDown}
+            onDragOver={(e) => {
+              if (e.dataTransfer.types.includes('text/composio-app')) {
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'link'
+                if (dropTargetAgentId !== agent.id) setDropTargetAgentId(agent.id)
+              }
+            }}
+            onDragLeave={() => {
+              if (dropTargetAgentId === agent.id) setDropTargetAgentId(null)
+            }}
+            onDrop={(e) => {
+              const app = e.dataTransfer.getData('text/composio-app')
+              setDropTargetAgentId(null)
+              if (app) {
+                e.preventDefault()
+                handleDropGrant(agent.id, app)
+              }
+            }}
             className={cn(
               'absolute z-20 group -translate-x-1/2 -translate-y-1/2',
               isArriving ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing',
@@ -432,7 +482,9 @@ export function AgentAvatarDock() {
             {/* Avatar ring */}
             <div className={cn(
               'relative w-[72px] h-[72px] rounded-full border-2 transition-all duration-200 shadow-lg',
-              isSelected
+              isDropTarget
+                ? 'border-panel-accent ring-4 ring-panel-accent/40 scale-110 shadow-panel-accent/60'
+                : isSelected
                 ? 'border-panel-accent shadow-panel-accent/30'
                 : 'border-white/20 group-hover:border-white/50',
             )}>
