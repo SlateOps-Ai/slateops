@@ -695,10 +695,10 @@ export default function CeoLayerPage() {
           </div>
         </div>
       ) : (
-        <div className="flex-1 p-5 flex gap-4 overflow-hidden">
+        <div className="flex-1 px-5 py-4 flex flex-col gap-7 overflow-y-auto max-w-[1400px] mx-auto w-full">
 
-          {/* ── Panel 1: Decisions + Money & Impact ─────────────────── */}
-          <div className="w-[32%] flex flex-col gap-4">
+          {/* ── Section 1: Decisions ─────────────────────────────────── */}
+          <div className="flex flex-col gap-4">
           <SectionBanner n={1} label="Decisions" subtitle="Your sign-off pipeline" tone="amber" />
           <div ref={approvalQueueRef} className="h-[12cm] flex flex-col rounded-2xl border border-white/[0.07] bg-[#0d1117] overflow-hidden shadow-xl shadow-black/30 scroll-mt-6">
             <div className="px-5 py-4 border-b border-white/[0.06] shrink-0">
@@ -832,188 +832,10 @@ export default function CeoLayerPage() {
               )}
             </div>
           </div>
-
-            <SectionBanner n={4} label="Money & Impact" subtitle="What you got, what it cost" tone="emerald" />
-
-            {/* ROI & Impact */}
-            <div className="rounded-2xl border border-white/[0.07] bg-[#0d1117] overflow-hidden shadow-xl shadow-black/30">
-              <div className="px-5 py-4 border-b border-white/[0.06] flex items-center gap-3">
-                <div className="w-7 h-7 rounded-lg bg-emerald-400/10 border border-emerald-400/20 flex items-center justify-center shrink-0">
-                  <Target size={13} className="text-emerald-400" />
-                </div>
-                <div className="flex-1">
-                  <h2 className="text-sm font-semibold text-white">ROI & Impact</h2>
-                  <p className="text-[#8892b0] text-[11px] mt-0.5">Real metrics — tasks delegated and time saved</p>
-                </div>
-                <span className="text-[10px] text-emerald-400/70 font-medium">Live</span>
-              </div>
-              <div className="p-4 space-y-3">
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { icon: <Clock size={12} />,      label: `Hours delegated (${windowShort})`, value: roi ? `${(roi.totalMinutesSaved / 60).toFixed(1)}h` : '—', color: 'text-blue-400',    bg: 'bg-blue-400/8 border-blue-400/15'       },
-                    { icon: <Zap size={12} />,        label: 'Tasks completed',       value: roi ? String(roi.tasksCompleted30d) : '—',                  color: 'text-amber-400',   bg: 'bg-amber-400/8 border-amber-400/15'     },
-                    { icon: <TrendingUp size={12} />, label: 'Success rate',          value: roi ? `${roi.successRate}%` : '—',                          color: 'text-[#4d7fff]',   bg: 'bg-[#4d7fff]/8 border-[#4d7fff]/15'    },
-                    { icon: <Target size={12} />,     label: 'Content pieces',        value: roi ? String(roi.contentPieces) : '—',                      color: 'text-emerald-400', bg: 'bg-emerald-400/8 border-emerald-400/15' },
-                  ].map(({ icon, label, value, color, bg }) => (
-                    <div key={label} className={cn('rounded-xl border px-3 py-2.5', bg)}>
-                      <span className={cn('mb-1.5 block', color)}>{icon}</span>
-                      <p className={cn('text-base font-bold tabular-nums leading-none', color)}>{value}</p>
-                      <p className="text-[9px] text-[#8892b0] mt-1 leading-tight">{label}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-[10px] text-[#8892b0] uppercase tracking-widest">Agent success rate</p>
-                    {roi && (
-                      <span className={cn('text-xs font-bold', roi.successRate >= 80 ? 'text-emerald-400' : roi.successRate >= 60 ? 'text-amber-400' : 'text-red-400')}>
-                        {roi.successRate}%
-                      </span>
-                    )}
-                  </div>
-                  <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
-                    {roi && (
-                      <div
-                        className={cn('h-full rounded-full', roi.successRate >= 80 ? 'bg-emerald-400' : roi.successRate >= 60 ? 'bg-amber-400' : 'bg-red-400')}
-                        style={{ width: `${roi.successRate}%` }}
-                      />
-                    )}
-                  </div>
-                </div>
-                {!roi && (
-                  <p className="text-[10px] text-[#8892b0] text-center leading-relaxed py-1">
-                    Real metrics coming — tracking tasks delegated and time saved.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Office Analytics */}
-            <div className="rounded-2xl border border-white/[0.07] bg-[#0d1117] overflow-hidden shadow-xl shadow-black/30">
-              <div className="px-5 py-4 border-b border-white/[0.06] flex items-center gap-3">
-                <div className="w-7 h-7 rounded-lg bg-[#4d7fff]/10 border border-[#4d7fff]/20 flex items-center justify-center shrink-0">
-                  <BarChart2 size={13} className="text-[#4d7fff]" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-semibold text-white">Office Analytics</h2>
-                  <p className="text-[#8892b0] text-[11px] mt-0.5">{windowLabel} workspace performance</p>
-                </div>
-              </div>
-              <div className="p-4 space-y-4">
-                {!analytics ? (
-                  <p className="text-[10px] text-[#8892b0] text-center py-3 italic">Loading analytics…</p>
-                ) : (
-                  <>
-                    {(() => {
-                      const totalRatings = (analytics.positiveRatings ?? 0) + (analytics.negativeRatings ?? 0)
-                      const satPct = totalRatings > 0 ? Math.round((analytics.positiveRatings / totalRatings) * 100) : null
-                      return (
-                        <div className="grid grid-cols-2 gap-2">
-                          {[
-                            { icon: <CheckCheck size={12} />, label: `Completed (${windowShort})`, value: String(analytics.complete30d),  sub: `${analytics.successRate}% success`, color: 'text-emerald-400' },
-                            { icon: <Activity size={12} />,   label: 'Today',           value: String(analytics.todayComplete), sub: 'tasks done',                        color: 'text-[#4d7fff]'   },
-                            { icon: <DollarSign size={12} />, label: 'Avg cost / task',
-                              value: analytics.avgCostUsd > 0 ? `$${analytics.avgCostUsd.toFixed(3)}` : '—',
-                              sub: `$${analytics.totalCostUsd.toFixed(3)} total`, color: 'text-[#8892b0]' },
-                            satPct !== null
-                              ? { icon: <ThumbsUp size={12} />, label: 'Satisfaction', value: `${satPct}%`, sub: `${totalRatings} rated`, color: satPct >= 70 ? 'text-emerald-400' : 'text-amber-400' }
-                              : { icon: <Zap size={12} />,      label: 'Total tasks',  value: String(analytics.total30d), sub: windowShort,    color: 'text-[#8892b0]' },
-                          ].map(({ icon, label, value, sub, color }) => (
-                            <div key={label} className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-2.5 flex items-start gap-2">
-                              <span className={cn('mt-0.5 shrink-0', color)}>{icon}</span>
-                              <div className="min-w-0">
-                                <p className="text-white text-sm font-semibold leading-tight">{value}</p>
-                                <p className="text-[#8892b0] text-[10px] truncate">{label}</p>
-                                {sub && <p className={cn('text-[10px] mt-0.5', color)}>{sub}</p>}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )
-                    })()}
-                    {analytics.xp && (
-                      <div className="flex gap-2">
-                        <div className="flex-1 rounded-xl border border-[#4d7fff]/20 bg-[#4d7fff]/[0.04] px-3 py-2 flex items-center gap-2">
-                          <Star size={11} className="text-[#4d7fff] shrink-0" />
-                          <div>
-                            <p className="text-white text-xs font-semibold">Lv {analytics.xp.level}</p>
-                            <p className="text-[#8892b0] text-[9px]">{analytics.xp.totalXp.toLocaleString()} XP</p>
-                          </div>
-                        </div>
-                        <div className="flex-1 rounded-xl border border-amber-400/20 bg-amber-400/[0.04] px-3 py-2 flex items-center gap-2">
-                          <Flame size={11} className="text-amber-400 shrink-0" />
-                          <div>
-                            <p className="text-white text-xs font-semibold">{analytics.xp.streakDays}d streak</p>
-                            <p className="text-[#8892b0] text-[9px]">daily activity</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    {analytics.dailyVolume.length > 0 && (
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-[10px] text-[#8892b0] uppercase tracking-widest">Last 7 days</p>
-                          <div className="flex gap-1">
-                            {(['count', 'cost'] as const).map((m) => (
-                              <button key={m} onClick={() => setChartMode(m)}
-                                className={cn('px-2 py-0.5 rounded text-[9px] transition-colors', chartMode === m ? 'bg-[#4d7fff]/20 text-[#4d7fff]' : 'text-[#8892b0] hover:text-white')}>
-                                {m === 'count' ? 'Tasks' : 'Cost'}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                        <MiniBar stats={analytics.dailyVolume} mode={chartMode} />
-                      </div>
-                    )}
-                    {analytics.workflows.total30d > 0 && (
-                      <div>
-                        <div className="flex items-center gap-1.5 mb-2">
-                          <GitBranch size={11} className="text-[#8892b0]" />
-                          <p className="text-[10px] text-[#8892b0] uppercase tracking-widest">Workflows ({windowShort})</p>
-                        </div>
-                        <div className="grid grid-cols-3 gap-1.5">
-                          {[
-                            { label: 'Ran',      value: analytics.workflows.total30d,         color: 'text-white'        },
-                            { label: 'Complete', value: analytics.workflows.complete30d,       color: 'text-emerald-400'  },
-                            { label: 'Success',  value: `${analytics.workflows.successRate}%`, color: 'text-[#4d7fff]'   },
-                          ].map((s) => (
-                            <div key={s.label} className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-2 py-1.5 text-center">
-                              <p className={cn('text-xs font-semibold', s.color)}>{s.value}</p>
-                              <p className="text-[#8892b0] text-[9px]">{s.label}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {analytics.topCommands.length > 0 && (
-                      <div>
-                        <div className="flex items-center gap-1.5 mb-2">
-                          <Terminal size={11} className="text-[#8892b0]" />
-                          <p className="text-[10px] text-[#8892b0] uppercase tracking-widest">Top commands</p>
-                        </div>
-                        <div className="space-y-1">
-                          {analytics.topCommands.map((c, i) => (
-                            <div key={i} className="flex items-center gap-2">
-                              <span className="text-[#8892b0] text-[10px] w-3 shrink-0">{i + 1}</span>
-                              <span className="text-white text-xs flex-1 truncate">{c.title}</span>
-                              <span className="text-[#8892b0] text-[10px] shrink-0">{c.runCount}×</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    <div>
-                      <p className="text-[10px] text-[#8892b0] uppercase tracking-widest mb-2">Confidence distribution</p>
-                      <ConfidenceBar dist={analytics.confidenceDist} />
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
           </div>
 
-          {/* ── Panel 2: Today's Narrative (Activity Feed) ──────────── */}
-          <div className="w-[30%] flex flex-col gap-2">
+          {/* ── Section 2: Today's Narrative ─────────────────────────── */}
+          <div className="flex flex-col gap-2">
           <SectionBanner n={2} label="Today's narrative" subtitle="What happened, in order" tone="blue" />
           {(() => {
             const today = new Date().toISOString().slice(0, 10)
@@ -1195,8 +1017,8 @@ export default function CeoLayerPage() {
           })()}
           </div>
 
-          {/* ── Panel 3: Team Status + Guardrails ───────────────────── */}
-          <div className="flex-1 flex flex-col gap-4 overflow-y-auto min-w-0">
+          {/* ── Sections 3 → 5: Team, Money, Guardrails ─────────────── */}
+          <div className="flex flex-col gap-7 min-w-0">
 
             <SectionBanner n={3} label="Team status" subtitle="Where each agent is" tone="blue" />
 
@@ -1349,6 +1171,187 @@ export default function CeoLayerPage() {
                 {execAgents.length === 0 ? (
                   <p className="col-span-3 text-white/25 text-xs px-2 py-3 text-center italic">No agents yet</p>
                 ) : execAgents.map((a) => <AgentPerformanceCard key={a.id} agent={a} />)}
+              </div>
+            </div>
+
+            <SectionBanner n={4} label="Money & Impact" subtitle="What you got, what it cost" tone="emerald" />
+
+            {/* ROI + Office Analytics side-by-side on wider screens */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* ROI & Impact */}
+              <div className="rounded-2xl border border-white/[0.07] bg-[#0d1117] overflow-hidden shadow-xl shadow-black/30">
+                <div className="px-5 py-4 border-b border-white/[0.06] flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-400/10 border border-emerald-400/20 flex items-center justify-center shrink-0">
+                    <Target size={13} className="text-emerald-400" />
+                  </div>
+                  <div className="flex-1">
+                    <h2 className="text-sm font-semibold text-white">ROI & Impact</h2>
+                    <p className="text-[#8892b0] text-[11px] mt-0.5">Real metrics — tasks delegated and time saved</p>
+                  </div>
+                  <span className="text-[10px] text-emerald-400/70 font-medium">Live</span>
+                </div>
+                <div className="p-4 space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { icon: <Clock size={12} />,      label: `Hours delegated (${windowShort})`, value: roi ? `${(roi.totalMinutesSaved / 60).toFixed(1)}h` : '—', color: 'text-blue-400',    bg: 'bg-blue-400/8 border-blue-400/15'       },
+                      { icon: <Zap size={12} />,        label: 'Tasks completed',       value: roi ? String(roi.tasksCompleted30d) : '—',                  color: 'text-amber-400',   bg: 'bg-amber-400/8 border-amber-400/15'     },
+                      { icon: <TrendingUp size={12} />, label: 'Success rate',          value: roi ? `${roi.successRate}%` : '—',                          color: 'text-[#4d7fff]',   bg: 'bg-[#4d7fff]/8 border-[#4d7fff]/15'    },
+                      { icon: <Target size={12} />,     label: 'Content pieces',        value: roi ? String(roi.contentPieces) : '—',                      color: 'text-emerald-400', bg: 'bg-emerald-400/8 border-emerald-400/15' },
+                    ].map(({ icon, label, value, color, bg }) => (
+                      <div key={label} className={cn('rounded-xl border px-3 py-2.5', bg)}>
+                        <span className={cn('mb-1.5 block', color)}>{icon}</span>
+                        <p className={cn('text-base font-bold tabular-nums leading-none', color)}>{value}</p>
+                        <p className="text-[9px] text-[#8892b0] mt-1 leading-tight">{label}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[10px] text-[#8892b0] uppercase tracking-widest">Agent success rate</p>
+                      {roi && (
+                        <span className={cn('text-xs font-bold', roi.successRate >= 80 ? 'text-emerald-400' : roi.successRate >= 60 ? 'text-amber-400' : 'text-red-400')}>
+                          {roi.successRate}%
+                        </span>
+                      )}
+                    </div>
+                    <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                      {roi && (
+                        <div
+                          className={cn('h-full rounded-full', roi.successRate >= 80 ? 'bg-emerald-400' : roi.successRate >= 60 ? 'bg-amber-400' : 'bg-red-400')}
+                          style={{ width: `${roi.successRate}%` }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                  {!roi && (
+                    <p className="text-[10px] text-[#8892b0] text-center leading-relaxed py-1">
+                      Real metrics coming — tracking tasks delegated and time saved.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Office Analytics */}
+              <div className="rounded-2xl border border-white/[0.07] bg-[#0d1117] overflow-hidden shadow-xl shadow-black/30">
+                <div className="px-5 py-4 border-b border-white/[0.06] flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-lg bg-[#4d7fff]/10 border border-[#4d7fff]/20 flex items-center justify-center shrink-0">
+                    <BarChart2 size={13} className="text-[#4d7fff]" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-semibold text-white">Office Analytics</h2>
+                    <p className="text-[#8892b0] text-[11px] mt-0.5">{windowLabel} workspace performance</p>
+                  </div>
+                </div>
+                <div className="p-4 space-y-4">
+                  {!analytics ? (
+                    <p className="text-[10px] text-[#8892b0] text-center py-3 italic">Loading analytics…</p>
+                  ) : (
+                    <>
+                      {(() => {
+                        const totalRatings = (analytics.positiveRatings ?? 0) + (analytics.negativeRatings ?? 0)
+                        const satPct = totalRatings > 0 ? Math.round((analytics.positiveRatings / totalRatings) * 100) : null
+                        return (
+                          <div className="grid grid-cols-2 gap-2">
+                            {[
+                              { icon: <CheckCheck size={12} />, label: `Completed (${windowShort})`, value: String(analytics.complete30d),  sub: `${analytics.successRate}% success`, color: 'text-emerald-400' },
+                              { icon: <Activity size={12} />,   label: 'Today',           value: String(analytics.todayComplete), sub: 'tasks done',                        color: 'text-[#4d7fff]'   },
+                              { icon: <DollarSign size={12} />, label: 'Avg cost / task',
+                                value: analytics.avgCostUsd > 0 ? `$${analytics.avgCostUsd.toFixed(3)}` : '—',
+                                sub: `$${analytics.totalCostUsd.toFixed(3)} total`, color: 'text-[#8892b0]' },
+                              satPct !== null
+                                ? { icon: <ThumbsUp size={12} />, label: 'Satisfaction', value: `${satPct}%`, sub: `${totalRatings} rated`, color: satPct >= 70 ? 'text-emerald-400' : 'text-amber-400' }
+                                : { icon: <Zap size={12} />,      label: 'Total tasks',  value: String(analytics.total30d), sub: windowShort,    color: 'text-[#8892b0]' },
+                            ].map(({ icon, label, value, sub, color }) => (
+                              <div key={label} className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-2.5 flex items-start gap-2">
+                                <span className={cn('mt-0.5 shrink-0', color)}>{icon}</span>
+                                <div className="min-w-0">
+                                  <p className="text-white text-sm font-semibold leading-tight">{value}</p>
+                                  <p className="text-[#8892b0] text-[10px] truncate">{label}</p>
+                                  {sub && <p className={cn('text-[10px] mt-0.5', color)}>{sub}</p>}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      })()}
+                      {analytics.xp && (
+                        <div className="flex gap-2">
+                          <div className="flex-1 rounded-xl border border-[#4d7fff]/20 bg-[#4d7fff]/[0.04] px-3 py-2 flex items-center gap-2">
+                            <Star size={11} className="text-[#4d7fff] shrink-0" />
+                            <div>
+                              <p className="text-white text-xs font-semibold">Lv {analytics.xp.level}</p>
+                              <p className="text-[#8892b0] text-[9px]">{analytics.xp.totalXp.toLocaleString()} XP</p>
+                            </div>
+                          </div>
+                          <div className="flex-1 rounded-xl border border-amber-400/20 bg-amber-400/[0.04] px-3 py-2 flex items-center gap-2">
+                            <Flame size={11} className="text-amber-400 shrink-0" />
+                            <div>
+                              <p className="text-white text-xs font-semibold">{analytics.xp.streakDays}d streak</p>
+                              <p className="text-[#8892b0] text-[9px]">daily activity</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {analytics.dailyVolume.length > 0 && (
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-[10px] text-[#8892b0] uppercase tracking-widest">Last 7 days</p>
+                            <div className="flex gap-1">
+                              {(['count', 'cost'] as const).map((m) => (
+                                <button key={m} onClick={() => setChartMode(m)}
+                                  className={cn('px-2 py-0.5 rounded text-[9px] transition-colors', chartMode === m ? 'bg-[#4d7fff]/20 text-[#4d7fff]' : 'text-[#8892b0] hover:text-white')}>
+                                  {m === 'count' ? 'Tasks' : 'Cost'}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <MiniBar stats={analytics.dailyVolume} mode={chartMode} />
+                        </div>
+                      )}
+                      {analytics.workflows.total30d > 0 && (
+                        <div>
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <GitBranch size={11} className="text-[#8892b0]" />
+                            <p className="text-[10px] text-[#8892b0] uppercase tracking-widest">Workflows ({windowShort})</p>
+                          </div>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {[
+                              { label: 'Ran',      value: analytics.workflows.total30d,         color: 'text-white'        },
+                              { label: 'Complete', value: analytics.workflows.complete30d,       color: 'text-emerald-400'  },
+                              { label: 'Success',  value: `${analytics.workflows.successRate}%`, color: 'text-[#4d7fff]'   },
+                            ].map((s) => (
+                              <div key={s.label} className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-2 py-1.5 text-center">
+                                <p className={cn('text-xs font-semibold', s.color)}>{s.value}</p>
+                                <p className="text-[#8892b0] text-[9px]">{s.label}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {analytics.topCommands.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <Terminal size={11} className="text-[#8892b0]" />
+                            <p className="text-[10px] text-[#8892b0] uppercase tracking-widest">Top commands</p>
+                          </div>
+                          <div className="space-y-1">
+                            {analytics.topCommands.map((c, i) => (
+                              <div key={i} className="flex items-center gap-2">
+                                <span className="text-[#8892b0] text-[10px] w-3 shrink-0">{i + 1}</span>
+                                <span className="text-white text-xs flex-1 truncate">{c.title}</span>
+                                <span className="text-[#8892b0] text-[10px] shrink-0">{c.runCount}×</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-[10px] text-[#8892b0] uppercase tracking-widest mb-2">Confidence distribution</p>
+                        <ConfidenceBar dist={analytics.confidenceDist} />
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 
