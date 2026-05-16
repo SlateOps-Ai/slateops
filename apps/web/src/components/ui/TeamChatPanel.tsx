@@ -14,6 +14,7 @@ import { useAuthFetch } from '@/hooks/useAuthFetch'
 import { cn } from '@/lib/utils'
 import { AgentActionsHeader } from '@/components/ui/AgentActionsHeader'
 import { SlateText } from '@/components/ui/SlateText'
+import { SlateCaretLogo } from '@/components/branding/SlateCaretLogo'
 import { AGENT_ROLE_LABELS, findCatalogApp, canRoleUseApp } from '@agentcity/types'
 import type { AgentStatus, AgentRole } from '@agentcity/types'
 
@@ -250,9 +251,12 @@ function CeoCommandPanel({ onHeaderMouseDown: _onHeaderMouseDown }: { onSelectAg
           )}
         </AnimatePresence>
 
-        {/* Idle empty state */}
+        {/* Idle empty state with subtle brand watermark */}
         {cmdState === 'idle' && visibleSteps.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full gap-3 py-8 text-center">
+          <div className="flex flex-col items-center justify-center h-full gap-5 py-8 text-center">
+            <div className="opacity-[0.12] hover:opacity-[0.18] transition-opacity duration-700">
+              <SlateCaretLogo size={96} variant="amber" animate={false} />
+            </div>
             <p className="text-panel-muted/60 text-xs leading-relaxed max-w-xs">
               Type a command and it will be routed to the right agent automatically.<br />
               Or click an agent on the left to chat directly.
@@ -845,8 +849,21 @@ export function TeamChatPanel() {
           {/* ── Panel-level drag strip + window controls ─────────────────── */}
           <div
             onMouseDown={handleDragStart}
-            className="flex items-center gap-1 px-3 py-1.5 border-b border-white/[0.04] shrink-0 cursor-move select-none"
+            className="flex items-center gap-2 px-3 py-1.5 border-b border-white/[0.04] shrink-0 cursor-move select-none"
           >
+            {/* SlateOps brand lockup — top-left, persists across CEO + agent modes */}
+            <div className="flex items-baseline gap-1.5 pr-1.5 mr-1 border-r border-white/[0.05]">
+              <SlateCaretLogo size={16} variant="amber" animate={false} className="self-center" />
+              <span className="text-[11px] font-bold text-white tracking-tight flex items-baseline antialiased">
+                <span>slate</span>
+                <span
+                  aria-hidden
+                  className="inline-block w-[1.5px] mx-[1.5px] bg-amber-400 rounded-[1px] animate-pulse"
+                  style={{ animationDuration: '0.7s', height: '0.95em', transform: 'translateY(0.15em)' }}
+                />
+                <span>ops</span>
+              </span>
+            </div>
             <button
               onClick={() => setActiveChatAgent(null)}
               onMouseDown={(e) => e.stopPropagation()}
