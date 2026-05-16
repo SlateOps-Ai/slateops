@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Settings, GitBranch, Plug, Zap, Brain, Users, Sparkles, BookOpen, ChevronDown, BookMarked, Smartphone, Network, TrendingUp, Shield } from 'lucide-react'
+import { Sparkles, Shield } from 'lucide-react'
 import { SlateCaretLogo } from '@/components/branding/SlateCaretLogo'
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -11,7 +11,6 @@ import { useAgentEvents } from '@/hooks/useAgentEvents'
 import { useAuthFetch } from '@/hooks/useAuthFetch'
 import { AgentAvatarDock } from '@/components/ui/AgentAvatarDock'
 import { ApprovalToast } from '@/components/ui/ApprovalToast'
-import { CommandLibrary } from '@/components/ui/CommandLibrary'
 import { TaskResultPanel } from '@/components/ui/TaskResultPanel'
 import { SettingsPanel } from '@/components/ui/SettingsPanel'
 import { OnboardingTakeover } from '@/components/ui/OnboardingTakeover'
@@ -66,8 +65,6 @@ export function OfficeCanvas() {
   const [brainOpen,        setBrainOpen]        = useState(false)
   const [autonomousOpen,   setAutonomousOpen]   = useState(false)
   const [showOnboarding,        setShowOnboarding]        = useState(false)
-  const [commandLibraryOpen,    setCommandLibraryOpen]    = useState(false)
-  const commandsAnchorRef = useRef<HTMLDivElement>(null)
   const [showDailyBriefPrompt,  setShowDailyBriefPrompt] = useState(false)
   const [pendingCount, setPendingCount] = useState(0)
   const [showOnboardingTakeover, setShowOnboardingTakeover] = useState(false)
@@ -86,13 +83,32 @@ export function OfficeCanvas() {
     if (firstRunLock && agentsCount > 0) setFirstRunLock(false)
   }, [agentsCount, firstRunLock])
 
-  // Open the upgrade panel when arriving via /billing → /office?billing=1.
-  // Strip the param so a refresh doesn't keep re-opening the panel.
+  // Open the corresponding panel when arriving with a ?panel=<name> query
+  // (or the legacy ?billing=1). Strip the param so a refresh doesn't loop.
+  // This is the fallback access route for panels no longer in the sidebar
+  // (MCP, Autonomous, Evolution) — used by future cross-links inside the
+  // primary panels.
   useEffect(() => {
-    if (searchParams?.get('billing') === '1') {
-      setBillingOpen(true)
-      router.replace('/office')
+    const panel = searchParams?.get('panel')
+    if (searchParams?.get('billing') === '1') setBillingOpen(true)
+    switch (panel) {
+      case 'billing':       setBillingOpen(true);      break
+      case 'marketplace':   setMarketplaceOpen(true);  break
+      case 'connections':   setConnectionsOpen(true);  break
+      case 'workflow':      setWorkflowOpen(true);     break
+      case 'playbooks':     setPlaybooksOpen(true);    break
+      case 'triggers':      setTriggersOpen(true);     break
+      case 'mcp':           setMcpOpen(true);          break
+      case 'autonomous':    setAutonomousOpen(true);   break
+      case 'memory':        setMemoryOpen(true);       break
+      case 'evolution':     setEvolutionOpen(true);    break
+      case 'brain':         setBrainOpen(true);        break
+      case 'collaboration': setCollabOpen(true);       break
+      case 'teams':         setTeamOpen(true);         break
+      case 'notifications': setPushOpen(true);         break
+      case 'settings':      setSettingsOpen(true);     break
     }
+    if (panel || searchParams?.get('billing')) router.replace('/office')
   }, [searchParams, router])
 
   // Poll pending approval count for badge
@@ -273,47 +289,33 @@ export function OfficeCanvas() {
             const toggle = (setter: React.Dispatch<React.SetStateAction<boolean>>, current: boolean) => {
               closeAll(); if (!current) setter(true)
             }
+            // Three groups mapping onto how a solopreneur thinks: Automate /
+            // Knowledge / Setup. Secondary panels (MCP, Autonomous, Evolution,
+            // Commands library) stay reachable via /office?panel=X URLs and
+            // future cross-links inside the primary panels.
             const NAV_GROUPS = [
               {
-                group: 'Build',
+                group: 'Automate',
                 items: [
-                  { icon: <span className="text-base leading-none">🛠️</span>, c: 'text-purple-400 bg-purple-400/15 border-purple-400/25', label: 'Build a Workflow', active: workflowOpen, onClick: () => toggle(setWorkflowOpen, workflowOpen) },
+                  { icon: <span className="text-base leading-none">📖</span>, c: 'text-teal-400 bg-teal-400/15 border-teal-400/25',       label: 'Playbooks',        active: playbooksOpen, onClick: () => toggle(setPlaybooksOpen, playbooksOpen) },
+                  { icon: <span className="text-base leading-none">⚡</span>, c: 'text-yellow-400 bg-yellow-400/15 border-yellow-400/25', label: 'Triggers',         active: triggersOpen,  onClick: () => toggle(setTriggersOpen, triggersOpen) },
+                  { icon: <span className="text-base leading-none">🛠️</span>, c: 'text-purple-400 bg-purple-400/15 border-purple-400/25', label: 'Workflow Builder', active: workflowOpen,  onClick: () => toggle(setWorkflowOpen, workflowOpen) },
                 ],
               },
               {
-                group: 'Workspace',
-                items: [
-                  { icon: <span className="text-base leading-none">🔌</span>, c: 'text-cyan-400 bg-cyan-400/15 border-cyan-400/25',       label: 'MCP Connections',   active: mcpOpen,        onClick: () => toggle(setMcpOpen, mcpOpen) },
-                  { icon: <span className="text-base leading-none">⚡</span>, c: 'text-yellow-400 bg-yellow-400/15 border-yellow-400/25', label: 'Triggers',          active: triggersOpen,   onClick: () => toggle(setTriggersOpen, triggersOpen) },
-                  { icon: <span className="text-base leading-none">📖</span>, c: 'text-teal-400 bg-teal-400/15 border-teal-400/25',       label: 'Playbooks',         active: playbooksOpen,  onClick: () => toggle(setPlaybooksOpen, playbooksOpen) },
-                ],
-              },
-              {
-                group: 'Agents',
+                group: 'Knowledge',
                 items: [
                   { icon: <span className="text-base leading-none">🧠</span>, c: 'text-indigo-400 bg-indigo-400/15 border-indigo-400/25', label: 'Agent Memory',  active: memoryOpen, onClick: () => toggle(setMemoryOpen, memoryOpen) },
-                  { icon: <span className="text-base leading-none">🤝</span>, c: 'text-sky-400 bg-sky-400/15 border-sky-400/25',           label: 'Collaboration', active: collabOpen, onClick: () => toggle(setCollabOpen, collabOpen) },
+                  { icon: <span className="text-base leading-none">🏢</span>, c: 'text-violet-400 bg-violet-400/15 border-violet-400/25', label: 'Company Brain', active: brainOpen,  onClick: () => toggle(setBrainOpen, brainOpen) },
+                  { icon: <span className="text-base leading-none">🤝</span>, c: 'text-sky-400 bg-sky-400/15 border-sky-400/25',           label: 'Activity Feed', active: collabOpen, onClick: () => toggle(setCollabOpen, collabOpen) },
                 ],
               },
               {
-                group: 'Team',
+                group: 'Setup',
                 items: [
-                  { icon: <span className="text-base leading-none">👥</span>, c: 'text-pink-400 bg-pink-400/15 border-pink-400/25', label: 'Teams',     active: teamOpen,    onClick: () => toggle(setTeamOpen, teamOpen) },
-                ],
-              },
-              {
-                group: 'Intelligence',
-                items: [
-                  { icon: <span className="text-base leading-none">🏢</span>, c: 'text-violet-400 bg-violet-400/15 border-violet-400/25',   label: 'Company Brain',  active: brainOpen,         onClick: () => toggle(setBrainOpen, brainOpen) },
-                  { icon: <span className="text-base leading-none">🤖</span>, c: 'text-emerald-400 bg-emerald-400/15 border-emerald-400/25', label: 'Autonomous',     active: autonomousOpen,    onClick: () => toggle(setAutonomousOpen, autonomousOpen) },
-                  { icon: <span className="text-base leading-none">📈</span>, c: 'text-amber-400 bg-amber-400/15 border-amber-400/25',      label: 'Evolution',      active: evolutionOpen,     onClick: () => toggle(setEvolutionOpen, evolutionOpen) },
-                ],
-              },
-              {
-                group: 'System',
-                items: [
-                  { icon: <span className="text-base leading-none">🔔</span>, c: 'text-rose-400 bg-rose-400/15 border-rose-400/25', label: 'Notifications',  active: pushOpen,     onClick: () => toggle(setPushOpen, pushOpen) },
-                  { icon: <span className="text-base leading-none">⚙️</span>, c: 'text-gray-400 bg-gray-400/15 border-gray-400/25', label: 'Settings',       active: settingsOpen, onClick: () => toggle(setSettingsOpen, settingsOpen) },
+                  { icon: <span className="text-base leading-none">👥</span>, c: 'text-pink-400 bg-pink-400/15 border-pink-400/25', label: 'Teams',         active: teamOpen,     onClick: () => toggle(setTeamOpen, teamOpen) },
+                  { icon: <span className="text-base leading-none">🔔</span>, c: 'text-rose-400 bg-rose-400/15 border-rose-400/25', label: 'Notifications', active: pushOpen,     onClick: () => toggle(setPushOpen, pushOpen) },
+                  { icon: <span className="text-base leading-none">⚙️</span>, c: 'text-gray-400 bg-gray-400/15 border-gray-400/25', label: 'Settings',      active: settingsOpen, onClick: () => toggle(setSettingsOpen, settingsOpen) },
                 ],
               },
             ]
@@ -375,22 +377,6 @@ export function OfficeCanvas() {
                         </button>
                         )
                       })}
-                      {group === 'Agents' && (
-                        <div ref={commandsAnchorRef}>
-                          <button
-                            onClick={() => setCommandLibraryOpen((v) => !v)}
-                            className={cn(
-                              'w-full flex items-center gap-2.5 px-3 py-1.5 transition-all',
-                              commandLibraryOpen ? 'bg-white/[0.06] text-panel-accent' : 'text-white/35 hover:text-white/65 hover:bg-white/[0.04]',
-                            )}
-                          >
-                            <BookOpen size={11} className="shrink-0" />
-                            <span className="text-[13px] font-medium flex-1 text-left">Commands</span>
-                            <ChevronDown size={10} className={cn('transition-transform shrink-0', commandLibraryOpen && 'rotate-180')} />
-                          </button>
-                          <CommandLibrary open={commandLibraryOpen} onOpenChange={setCommandLibraryOpen} anchorRef={commandsAnchorRef} />
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
