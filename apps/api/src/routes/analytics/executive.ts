@@ -1,16 +1,17 @@
 import type { FastifyInstance } from 'fastify'
 import { prisma } from '../../lib/prisma.js'
+import { parseWindow, windowSince } from '../../lib/time-window.js'
 
 export default async function executiveRoute(app: FastifyInstance) {
   app.get('/api/analytics/executive', async (req, reply) => {
     try {
-    const userId  = req.dbUserId
-    const now     = new Date()
-    const since30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    const userId = req.dbUserId
+    const window = parseWindow((req.query as { window?: string } | undefined)?.window)
+    const since  = windowSince(window)
 
     const [allTasks, agents, schedules, approvalTasks] = await Promise.all([
       prisma.task.findMany({
-        where:   { userId },
+        where:   { userId, createdAt: { gte: since } },
         select:  {
           id: true, title: true, status: true, agentId: true,
           createdAt: true, completedAt: true, userRating: true,
@@ -109,7 +110,7 @@ export default async function executiveRoute(app: FastifyInstance) {
       next.setSeconds(0, 0)
       next.setMinutes(minF === '*' ? next.getMinutes() : parseInt(minF))
       next.setHours(hourF === '*' ? next.getHours() : parseInt(hourF))
-      if (next <= now) next.setDate(next.getDate() + 1)
+      if (next <= new Date()) next.setDate(next.getDate() + 1)
       if (dowF !== '*') {
         const target = parseInt(dowF)
         while (next.getDay() !== target) next.setDate(next.getDate() + 1)
@@ -149,6 +150,7 @@ export default async function executiveRoute(app: FastifyInstance) {
       }))
 
     return reply.send({
+      window,
       overview: { total, complete, failed, pending, inProgress, needsApproval, cancelled, successRate, ratedCount: ratedTasks.length, positiveRated, negativeRated, satisfactionRate },
       agents:   agentRows,
       scheduled: {

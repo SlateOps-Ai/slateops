@@ -1,19 +1,21 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../../lib/prisma.js'
+import { parseWindow, windowSince } from '../../lib/time-window.js'
 
 export default async function roiRoute(app: FastifyInstance) {
   app.get('/api/roi/summary', async (req, reply) => {
-    const userId  = req.dbUserId
-    const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    const userId = req.dbUserId
+    const window = parseWindow((req.query as { window?: string } | undefined)?.window)
+    const since  = windowSince(window)
 
     const [tasks, workflows, settings] = await Promise.all([
       prisma.task.findMany({
-        where:  { userId, status: 'COMPLETE', completedAt: { gte: since30 } },
+        where:  { userId, status: 'COMPLETE', completedAt: { gte: since } },
         select: { id: true, complexity: true, createdAt: true, completedAt: true },
       }),
       prisma.workflowRun.findMany({
-        where:  { userId, status: 'COMPLETE', createdAt: { gte: since30 } },
+        where:  { userId, status: 'COMPLETE', createdAt: { gte: since } },
         select: { id: true },
       }),
       prisma.user.findUnique({ where: { id: userId }, select: { settings: true } }),
@@ -25,12 +27,12 @@ export default async function roiRoute(app: FastifyInstance) {
     const minuteMap: Record<string, number> = { SIMPLE: 20, MEDIUM: 45, COMPLEX: 90 }
     const totalMinutesSaved = tasks.reduce((acc, t) => acc + (minuteMap[t.complexity ?? 'SIMPLE'] ?? 25), 0)
 
-    const allTasks = await prisma.task.count({ where: { userId, createdAt: { gte: since30 }, status: { not: 'CANCELLED' } } })
+    const allTasks = await prisma.task.count({ where: { userId, createdAt: { gte: since }, status: { not: 'CANCELLED' } } })
     const contentPieces = await prisma.task.count({
       where: {
         userId,
         status:     'COMPLETE',
-        createdAt:  { gte: since30 },
+        createdAt:  { gte: since },
         agent:      { role: { in: ['CONTENT_WRITER', 'MARKETING_STRATEGIST'] } },
       },
     })
@@ -39,6 +41,7 @@ export default async function roiRoute(app: FastifyInstance) {
 
     return reply.send({
       hourlyRate,
+      window,
       data: {
         tasksCompleted30d: tasks.length,
         avgMinutesPerTask: tasks.length > 0 ? Math.round(totalMinutesSaved / tasks.length) : 0,

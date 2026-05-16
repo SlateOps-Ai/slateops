@@ -380,12 +380,13 @@ export default function CeoLayerPage() {
     const token = await getToken()
     const headers = { Authorization: `Bearer ${token}` }
     const base = process.env.NEXT_PUBLIC_API_URL
+    const w = `?window=${timeWindow}`
     const [summaryRes, execRes, roiRes, analyticsRes, pipelineRes] = await Promise.all([
-      fetch(`${base}/api/ceo-layer/summary`,   { headers }),
-      fetch(`${base}/api/analytics/executive`, { headers }),
-      fetch(`${base}/api/roi/summary`,         { headers }),
-      fetch(`${base}/api/analytics/summary`,   { headers }),
-      fetch(`${base}/api/content/posts`,       { headers }),
+      fetch(`${base}/api/ceo-layer/summary`,        { headers }),
+      fetch(`${base}/api/analytics/executive${w}`,  { headers }),
+      fetch(`${base}/api/roi/summary${w}`,          { headers }),
+      fetch(`${base}/api/analytics/summary${w}`,    { headers }),
+      fetch(`${base}/api/content/posts`,            { headers }),
     ])
     if (summaryRes.ok)   setData(await summaryRes.json())
     if (execRes.ok)      setExec(await execRes.json())
@@ -394,7 +395,7 @@ export default function CeoLayerPage() {
     if (pipelineRes.ok)  { const d = await pipelineRes.json();  if (d.posts)   setPipeline(d.posts) }
     setLastFetch(new Date())
     setLoading(false)
-  }, [getToken])
+  }, [getToken, timeWindow])
 
   useEffect(() => { load() }, [load])
 
@@ -478,6 +479,10 @@ export default function CeoLayerPage() {
 
   // Anomaly callouts — recomputed whenever analytics or exec change.
   const anomalies = detectAnomalies(analytics, exec)
+
+  // Window labels for in-place section subtitles
+  const windowLabel = timeWindow === 'today' ? 'Today' : timeWindow === 'week' ? 'Last 7 days' : 'Last 30 days'
+  const windowShort = timeWindow === 'today' ? 'today' : timeWindow === 'week' ? 'last 7d'    : 'last 30d'
 
   // ── Hero state: what *you* need to attend to right now ─────────────────────
   const pendingCount      = data?.pendingCount ?? 0
@@ -845,7 +850,7 @@ export default function CeoLayerPage() {
               <div className="p-4 space-y-3">
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    { icon: <Clock size={12} />,      label: 'Hours delegated (30d)', value: roi ? `${(roi.totalMinutesSaved / 60).toFixed(1)}h` : '—', color: 'text-blue-400',    bg: 'bg-blue-400/8 border-blue-400/15'       },
+                    { icon: <Clock size={12} />,      label: `Hours delegated (${windowShort})`, value: roi ? `${(roi.totalMinutesSaved / 60).toFixed(1)}h` : '—', color: 'text-blue-400',    bg: 'bg-blue-400/8 border-blue-400/15'       },
                     { icon: <Zap size={12} />,        label: 'Tasks completed',       value: roi ? String(roi.tasksCompleted30d) : '—',                  color: 'text-amber-400',   bg: 'bg-amber-400/8 border-amber-400/15'     },
                     { icon: <TrendingUp size={12} />, label: 'Success rate',          value: roi ? `${roi.successRate}%` : '—',                          color: 'text-[#4d7fff]',   bg: 'bg-[#4d7fff]/8 border-[#4d7fff]/15'    },
                     { icon: <Target size={12} />,     label: 'Content pieces',        value: roi ? String(roi.contentPieces) : '—',                      color: 'text-emerald-400', bg: 'bg-emerald-400/8 border-emerald-400/15' },
@@ -891,7 +896,7 @@ export default function CeoLayerPage() {
                 </div>
                 <div>
                   <h2 className="text-sm font-semibold text-white">Office Analytics</h2>
-                  <p className="text-[#8892b0] text-[11px] mt-0.5">30-day workspace performance</p>
+                  <p className="text-[#8892b0] text-[11px] mt-0.5">{windowLabel} workspace performance</p>
                 </div>
               </div>
               <div className="p-4 space-y-4">
@@ -905,14 +910,14 @@ export default function CeoLayerPage() {
                       return (
                         <div className="grid grid-cols-2 gap-2">
                           {[
-                            { icon: <CheckCheck size={12} />, label: 'Completed (30d)', value: String(analytics.complete30d),  sub: `${analytics.successRate}% success`, color: 'text-emerald-400' },
+                            { icon: <CheckCheck size={12} />, label: `Completed (${windowShort})`, value: String(analytics.complete30d),  sub: `${analytics.successRate}% success`, color: 'text-emerald-400' },
                             { icon: <Activity size={12} />,   label: 'Today',           value: String(analytics.todayComplete), sub: 'tasks done',                        color: 'text-[#4d7fff]'   },
                             { icon: <DollarSign size={12} />, label: 'Avg cost / task',
                               value: analytics.avgCostUsd > 0 ? `$${analytics.avgCostUsd.toFixed(3)}` : '—',
                               sub: `$${analytics.totalCostUsd.toFixed(3)} total`, color: 'text-[#8892b0]' },
                             satPct !== null
                               ? { icon: <ThumbsUp size={12} />, label: 'Satisfaction', value: `${satPct}%`, sub: `${totalRatings} rated`, color: satPct >= 70 ? 'text-emerald-400' : 'text-amber-400' }
-                              : { icon: <Zap size={12} />,      label: 'Total tasks',  value: String(analytics.total30d), sub: 'last 30 days', color: 'text-[#8892b0]' },
+                              : { icon: <Zap size={12} />,      label: 'Total tasks',  value: String(analytics.total30d), sub: windowShort,    color: 'text-[#8892b0]' },
                           ].map(({ icon, label, value, sub, color }) => (
                             <div key={label} className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-2.5 flex items-start gap-2">
                               <span className={cn('mt-0.5 shrink-0', color)}>{icon}</span>
@@ -964,7 +969,7 @@ export default function CeoLayerPage() {
                       <div>
                         <div className="flex items-center gap-1.5 mb-2">
                           <GitBranch size={11} className="text-[#8892b0]" />
-                          <p className="text-[10px] text-[#8892b0] uppercase tracking-widest">Workflows (30d)</p>
+                          <p className="text-[10px] text-[#8892b0] uppercase tracking-widest">Workflows ({windowShort})</p>
                         </div>
                         <div className="grid grid-cols-3 gap-1.5">
                           {[

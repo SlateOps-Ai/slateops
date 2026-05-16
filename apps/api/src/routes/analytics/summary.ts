@@ -1,17 +1,20 @@
 import type { FastifyInstance } from 'fastify'
 import { prisma } from '../../lib/prisma.js'
+import { parseWindow, windowSince } from '../../lib/time-window.js'
 
 export default async function analyticsSummaryRoute(app: FastifyInstance) {
   app.get('/api/analytics/summary', async (req, reply) => {
     const userId = req.dbUserId
+    const window = parseWindow((req.query as { window?: string } | undefined)?.window)
     const now    = new Date()
-    const since7  = new Date(now.getTime() - 7  * 24 * 60 * 60 * 1000)
-    const since30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    const since  = windowSince(window)
+    // dailyVolume always shows 7 bars regardless of window for visual stability
+    const since7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
     const [allTasks, recentTasks, todayTasks, agents, topCommands, workflowRuns, xpProfile] = await Promise.all([
       prisma.task.findMany({
-        where:  { userId, createdAt: { gte: since30 } },
+        where:  { userId, createdAt: { gte: since } },
         select: { id: true, status: true, costUsd: true, tokensUsed: true, agentId: true, createdAt: true, confidence: true, userRating: true },
       }),
       prisma.task.findMany({
@@ -33,7 +36,7 @@ export default async function analyticsSummaryRoute(app: FastifyInstance) {
         select:  { title: true, rawCommand: true, runCount: true, lastRunAt: true },
       }),
       prisma.workflowRun.findMany({
-        where:   { userId, startedAt: { gte: since30 } },
+        where:   { userId, startedAt: { gte: since } },
         select:  { status: true, startedAt: true },
       }),
       prisma.userXp.findUnique({
@@ -89,6 +92,7 @@ export default async function analyticsSummaryRoute(app: FastifyInstance) {
 
     return reply.send({
       summary: {
+        window,
         total30d:        total,
         complete30d:     complete,
         failed30d:       failed,
