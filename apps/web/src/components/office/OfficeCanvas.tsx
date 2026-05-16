@@ -215,8 +215,11 @@ export function OfficeCanvas() {
               className="inline-block w-[5px] mx-[10px] bg-amber-400 rounded-[2px] animate-pulse"
               style={{
                 animationDuration: '0.7s',
-                height:    '0.55em',
-                transform: 'translateY(-0.04em)',
+                // Caret spans from just below the baseline (matching the "p"
+                // descender) up to roughly cap-height, so it visibly extends
+                // above AND below the lowercase "e".
+                height:    '0.95em',
+                transform: 'translateY(0.18em)',
               }}
             />
             <span>ops</span>
