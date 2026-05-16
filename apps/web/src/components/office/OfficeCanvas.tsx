@@ -65,6 +65,7 @@ export function OfficeCanvas() {
   const [brainOpen,        setBrainOpen]        = useState(false)
   const [autonomousOpen,   setAutonomousOpen]   = useState(false)
   const [showOnboarding,        setShowOnboarding]        = useState(false)
+  const [apiError,              setApiError]              = useState<string | null>(null)
   const [showDailyBriefPrompt,  setShowDailyBriefPrompt] = useState(false)
   const [pendingCount, setPendingCount] = useState(0)
   const [showOnboardingTakeover, setShowOnboardingTakeover] = useState(false)
@@ -174,10 +175,17 @@ export function OfficeCanvas() {
   useEffect(() => {
     const base = process.env.NEXT_PUBLIC_API_URL
     Promise.all([
-      authFetch(`${base}/api/agents`).then((r) => r.json()),
-      authFetch(`${base}/api/tasks?limit=20`).then((r) => r.json()),
+      authFetch(`${base}/api/agents`).then((r) => {
+        if (!r.ok) throw new Error(`/api/agents ${r.status}`)
+        return r.json()
+      }),
+      authFetch(`${base}/api/tasks?limit=20`).then((r) => {
+        if (!r.ok) throw new Error(`/api/tasks ${r.status}`)
+        return r.json()
+      }),
     ])
       .then(([agentData, taskData]) => {
+        setApiError(null)
         if (taskData.tasks) setTasks(taskData.tasks)
         if (agentData.agents) {
           if (agentData.agents.length === 0) { setFirstRunLock(true); return }
@@ -194,7 +202,14 @@ export function OfficeCanvas() {
           setAgents(agents)
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        // Surface API failures instead of swallowing them — the user was
+        // staring at a non-responsive office wondering what was wrong.
+        // eslint-disable-next-line no-console
+        console.error('[SlateOps] Agents/tasks fetch failed:', err)
+        setApiError((err as Error).message ?? 'Could not reach the API')
+        setFirstRunLock(true)
+      })
   }, [setAgents, setTasks, authFetch])
 
   // ── 3. Wire socket events → XState directors ────────────────────
@@ -208,6 +223,22 @@ export function OfficeCanvas() {
         className="absolute inset-0 w-full h-full"
         style={{ touchAction: 'none' }}
       />
+
+      {/* API-unreachable diagnostic — visible only when the agents/tasks
+          fetch failed, so the user knows nothing's broken in the UI but the
+          backend is offline. */}
+      {apiError && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-2 rounded-xl border border-red-400/40 bg-red-500/10 backdrop-blur-md px-3.5 py-2 shadow-2xl">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse shrink-0" />
+          <p className="text-red-300 text-[12px] font-semibold">
+            API server not reachable.
+          </p>
+          <p className="text-red-300/60 text-[11px]">
+            Start <code className="px-1 py-0.5 rounded bg-black/30 font-mono">apps/api</code> on port 4000 — then refresh.
+          </p>
+          <span className="text-red-400/40 text-[10px] font-mono ml-1">{apiError}</span>
+        </div>
+      )}
 
       {/* ── Ambient glow — atmosphere only, pointer-events-none ── */}
       <div
