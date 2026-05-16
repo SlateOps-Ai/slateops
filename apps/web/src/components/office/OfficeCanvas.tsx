@@ -302,7 +302,7 @@ export function OfficeCanvas() {
               },
             ]
             return (
-              <div className="absolute left-3 top-3 bottom-3 z-40 w-[184px] flex flex-col bg-panel-bg/96 backdrop-blur-md border border-white/[0.10] rounded-2xl shadow-2xl overflow-hidden antialiased">
+              <div className="absolute left-3 top-3 bottom-3 z-40 w-[184px] flex flex-col bg-panel-bg/96 backdrop-blur-md rounded-2xl shadow-2xl overflow-hidden antialiased subpixel-antialiased">
                 {/* Wordmark */}
                 <div className="flex items-center gap-2.5 px-4 py-3 border-b border-white/[0.06] shrink-0">
                   <div className="w-6 h-6 rounded-md bg-panel-accent/20 border border-panel-accent/30 flex items-center justify-center shrink-0">
@@ -347,7 +347,7 @@ export function OfficeCanvas() {
                               {icon}
                             </span>
                           </div>
-                          <span className={cn('text-[13px] font-medium truncate transition-colors', active ? 'text-white' : 'text-white/70 group-hover:text-white')}>
+                          <span className={cn('text-[13px] font-semibold truncate text-white antialiased', active && 'tracking-tight')}>
                             {label}
                           </span>
                         </button>
