@@ -42,6 +42,7 @@ export function ConnectionsPanel({ onClose }: Props) {
   const [grants,      setGrants]      = useState<Grant[]>([])
   const [loading,     setLoading]     = useState(true)
   const [busy,        setBusy]        = useState<string | null>(null)
+  const [error,       setError]       = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -81,21 +82,39 @@ export function ConnectionsPanel({ onClose }: Props) {
 
   async function startConnect(app: CatalogApp) {
     setBusy(app.composioAppName)
+    setError(null)
+
+    // Open the popup synchronously inside the click event — if we wait for the
+    // API roundtrip first, Chrome treats the window.open as non-user-initiated
+    // and blocks it silently.
+    const popup = window.open('about:blank', 'composio_oauth', 'width=600,height=720,popup=1')
+
     try {
       const res = await authFetch(`${API}/api/integrations/connect`, {
         method: 'POST',
         body:   JSON.stringify({ composioAppName: app.composioAppName }),
       })
-      const data = await res.json()
-      if (data.redirectUrl) {
-        const popup = window.open(data.redirectUrl, 'composio_oauth', 'width=600,height=720,popup=1')
-        if (!popup) {
-          window.location.href = data.redirectUrl
-        }
-      } else {
-        setBusy(null)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        popup?.close()
+        throw new Error(data?.detail ?? data?.error ?? `HTTP ${res.status}`)
       }
-    } catch {
+      if (!data.redirectUrl) {
+        popup?.close()
+        throw new Error('Server returned no redirect URL')
+      }
+      if (popup) {
+        popup.location.href = data.redirectUrl
+      } else {
+        // Popup was blocked despite the sync open — fall through to a full
+        // top-window redirect so the user can still complete OAuth.
+        window.location.href = data.redirectUrl
+      }
+    } catch (err) {
+      popup?.close()
+      // eslint-disable-next-line no-console
+      console.error('[Connect] failed:', err)
+      setError((err as Error).message ?? 'Could not start OAuth')
       setBusy(null)
     }
   }
@@ -182,6 +201,17 @@ export function ConnectionsPanel({ onClose }: Props) {
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto scrollbar-none p-3">
+        {error && (
+          <div className="mb-3 flex items-start gap-2 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-400 mt-1.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-red-300 text-[11px] font-semibold">Couldn't start OAuth</p>
+              <p className="text-red-300/70 text-[10px] mt-0.5 break-words">{error}</p>
+            </div>
+            <button onClick={() => setError(null)} className="text-red-300/40 hover:text-red-300 text-[12px] leading-none shrink-0">×</button>
+          </div>
+        )}
+
         {loading && (
           <div className="flex justify-center py-10">
             <Loader2 size={18} className="text-panel-accent animate-spin" />
