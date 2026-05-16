@@ -24,6 +24,7 @@ export function useAgentEvents(scene: OfficeScene | null) {
     upsertTask,
     setCompletedTask,
     setEvolutionToast,
+    pushAgentNotification,
   } = useAgentsStore()
 
   const applyGamificationUpdate = useGamificationStore((s) => s.applyUpdate)
@@ -143,6 +144,36 @@ export function useAgentEvents(scene: OfficeScene | null) {
             updateStatus(event.agentId, 'BLOCKED')
             actor.send({ type: 'TASK_BLOCKED', payload: event.payload })
             break
+          case 'GRANT_REQUESTED': {
+            const gr = (event.payload as any).grantRequest
+            if (gr) {
+              pushAgentNotification(event.agentId, {
+                id:        `grant-${gr.requestId}`,
+                type:      'grant',
+                headline:  gr.isAppConnected
+                  ? `Grant me access to ${gr.label}?`
+                  : `Connect ${gr.label} so I can help?`,
+                body:      gr.reason,
+                createdAt: new Date().toISOString(),
+                actions:   gr.isAppConnected
+                  ? [
+                      { id: 'grant_always', label: 'Always',  style: 'primary' },
+                      { id: 'grant_once',   label: 'Just once', style: 'subtle' },
+                      { id: 'deny',         label: 'Not now',   style: 'subtle' },
+                    ]
+                  : [
+                      { id: 'connect_and_grant', label: `Connect ${gr.emoji ?? ''} ${gr.label}`.trim(), style: 'primary' },
+                      { id: 'deny',              label: 'Not now', style: 'subtle' },
+                    ],
+                grant: {
+                  requestId:       gr.requestId,
+                  composioAppName: gr.composioAppName,
+                  isAppConnected:  gr.isAppConnected,
+                },
+              })
+            }
+            break
+          }
         }
       })
     }

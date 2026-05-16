@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Lightbulb, AlertTriangle, TrendingUp, Megaphone, RotateCcw } from 'lucide-react'
+import { X, Lightbulb, AlertTriangle, TrendingUp, Megaphone, RotateCcw, Plug } from 'lucide-react'
 import { useAgentsStore } from '@/stores/agents.store'
 import type { AgentNotification } from '@/stores/agents.store'
 import { SlateText } from '@/components/ui/SlateText'
 import { HandoffPath } from '@/components/ui/HandoffPath'
+import { useAuthFetch } from '@/hooks/useAuthFetch'
 import { cn } from '@/lib/utils'
 import { AGENT_ROLE_LABELS } from '@agentcity/types'
 import type { AgentStatus } from '@agentcity/types'
@@ -20,6 +21,7 @@ const NOTIF_ICON: Record<AgentNotification['type'], React.ReactNode> = {
   alert:       <AlertTriangle size={11} className="text-red-400" />,
   opportunity: <TrendingUp    size={11} className="text-emerald-400" />,
   update:      <Megaphone     size={11} className="text-panel-accent" />,
+  grant:       <Plug          size={11} className="text-panel-accent" />,
 }
 
 const STATUS_DOT: Record<AgentStatus, string> = {
@@ -67,6 +69,8 @@ export function AgentAvatarDock() {
   const agentPositions         = useAgentsStore((s) => s.agentPositions)
   const setAgentPosition       = useAgentsStore((s) => s.setAgentPosition)
   const resetAllAgentPositions = useAgentsStore((s) => s.resetAllAgentPositions)
+  const authFetch              = useAuthFetch()
+  const API                    = process.env.NEXT_PUBLIC_API_URL
 
   // Per-render ref to distinguish drag-then-release from click. Indexed by agentId.
   const dragStateRef = useRef<Record<string, { startX: number; startY: number; baseX: number; baseY: number; dragged: boolean }>>({})
@@ -85,11 +89,75 @@ export function AgentAvatarDock() {
 
   const HANDOFF_WINDOW_MS = 3500
 
-  // Auto-dismiss notifications after NOTIF_AUTO_DISMISS_MS. One timer per (agentId, notif.id).
+  // Pending OAuth popups per agent — we auto-grant once the popup returns
+  const pendingOauthRef = useRef<Record<string, { agentId: string; requestId: string; composioAppName: string }>>({})
+
+  // Listen for OAuth popup completion (from /oauth-callback) and finalize
+  // the grant by recording the connection + responding to the request.
+  useEffect(() => {
+    function onMessage(ev: MessageEvent) {
+      if (ev.origin !== window.location.origin)            return
+      if (ev.data?.type !== 'composio_oauth_complete')     return
+      const appName = ev.data?.composioAppName as string | undefined
+      if (!appName) return
+      const match = Object.values(pendingOauthRef.current).find((p) => p.composioAppName === appName)
+      if (!match) return
+      delete pendingOauthRef.current[match.agentId]
+      // 1) Record the connection 2) auto-grant via respond endpoint
+      authFetch(`${API}/api/integrations/callback`, {
+        method: 'POST',
+        body:   JSON.stringify({ composioAppName: appName }),
+      }).then(() => authFetch(`${API}/api/integrations/requests/${match.requestId}/respond`, {
+        method: 'POST',
+        body:   JSON.stringify({ action: 'grant_always' }),
+      })).then(() => dismissAgentNotification(match.agentId))
+        .catch(() => {})
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [API, authFetch, dismissAgentNotification])
+
+  async function handleGrantAction(agentId: string, notif: AgentNotification, actionId: NonNullable<AgentNotification['actions']>[number]['id']) {
+    const grant = notif.grant
+    if (!grant) return
+
+    if (actionId === 'connect_and_grant') {
+      // Open OAuth in popup; auto-grant on completion via the message listener above
+      try {
+        const res  = await authFetch(`${API}/api/integrations/connect`, {
+          method: 'POST',
+          body:   JSON.stringify({ composioAppName: grant.composioAppName }),
+        })
+        const data = await res.json()
+        if (data.redirectUrl) {
+          pendingOauthRef.current[agentId] = {
+            agentId,
+            requestId:       grant.requestId,
+            composioAppName: grant.composioAppName,
+          }
+          window.open(data.redirectUrl, 'composio_oauth', 'width=600,height=720,popup=1')
+        }
+      } catch { /* swallow — user can retry */ }
+      return
+    }
+
+    // grant_once | grant_always | deny — direct respond
+    try {
+      await authFetch(`${API}/api/integrations/requests/${grant.requestId}/respond`, {
+        method: 'POST',
+        body:   JSON.stringify({ action: actionId }),
+      })
+    } catch { /* non-fatal */ }
+    dismissAgentNotification(agentId)
+  }
+
+  // Auto-dismiss notifications after NOTIF_AUTO_DISMISS_MS. Grant prompts
+  // require an explicit response so they're excluded from auto-dismiss.
   const scheduledRef = useRef<Set<string>>(new Set())
   useEffect(() => {
     for (const [agentId, n] of Object.entries(agentNotifications)) {
       if (!n) continue
+      if (n.type === 'grant') continue
       const key = `${agentId}:${n.id}`
       if (scheduledRef.current.has(key)) continue
       scheduledRef.current.add(key)
@@ -289,36 +357,66 @@ export function AgentAvatarDock() {
           >
             {/* Speech bubble for this agent's most recent notification */}
             <AnimatePresence>
-              {agentNotifications[agent.id] && (
-                <motion.div
-                  key={agentNotifications[agent.id]!.id}
-                  initial={{ opacity: 0, y: 6, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 6, scale: 0.96 }}
-                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
-                  className="absolute z-30 left-1/2 -translate-x-1/2 bottom-full mb-3 w-[230px] rounded-xl border border-white/10 bg-panel-bg shadow-2xl backdrop-blur-sm cursor-default"
-                >
-                  <div className="flex items-start gap-2 p-2.5">
-                    <span className="mt-0.5 shrink-0">{NOTIF_ICON[agentNotifications[agent.id]!.type]}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[8px] text-panel-muted">{agent.name} · just now</p>
-                      <p className="text-white text-[10px] font-medium mt-0.5 leading-snug">
-                        <SlateText text={agentNotifications[agent.id]!.headline} maxDurationMs={1200} />
-                      </p>
+              {agentNotifications[agent.id] && (() => {
+                const notif    = agentNotifications[agent.id]!
+                const isGrant  = notif.type === 'grant'
+                return (
+                  <motion.div
+                    key={notif.id}
+                    initial={{ opacity: 0, y: 6, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.96 }}
+                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                    className={cn(
+                      'absolute z-30 left-1/2 -translate-x-1/2 bottom-full mb-3 rounded-xl border border-white/10 bg-panel-bg shadow-2xl backdrop-blur-sm cursor-default',
+                      isGrant ? 'w-[270px]' : 'w-[230px]',
+                    )}
+                  >
+                    <div className="flex items-start gap-2 p-2.5">
+                      <span className="mt-0.5 shrink-0">{NOTIF_ICON[notif.type]}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[8px] text-panel-muted">{agent.name} · just now</p>
+                        <p className="text-white text-[10px] font-medium mt-0.5 leading-snug">
+                          <SlateText text={notif.headline} maxDurationMs={1200} />
+                        </p>
+                        {isGrant && notif.body && (
+                          <p className="text-panel-muted text-[9px] leading-snug mt-1">{notif.body}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => dismissAgentNotification(agent.id)}
+                        className="text-panel-muted hover:text-white shrink-0 transition-colors"
+                      >
+                        <X size={10} />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => dismissAgentNotification(agent.id)}
-                      className="text-panel-muted hover:text-white shrink-0 transition-colors"
-                    >
-                      <X size={10} />
-                    </button>
-                  </div>
-                  {/* Tail pointing down to the avatar */}
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-panel-bg" />
-                </motion.div>
-              )}
+                    {isGrant && notif.actions && notif.actions.length > 0 && (
+                      <div className="px-2.5 pb-2.5 flex flex-wrap gap-1.5">
+                        {notif.actions.map((a) => (
+                          <button
+                            key={a.id}
+                            onClick={() => handleGrantAction(agent.id, notif, a.id)}
+                            className={cn(
+                              'px-2 py-1 rounded-md text-[10px] font-semibold transition-colors',
+                              a.style === 'primary'
+                                ? 'bg-panel-accent text-white hover:bg-panel-accent/85'
+                                : a.style === 'danger'
+                                ? 'bg-lamp-blocked/20 text-lamp-blocked hover:bg-lamp-blocked/30'
+                                : 'bg-white/[0.06] text-white/70 hover:bg-white/[0.12] hover:text-white',
+                            )}
+                          >
+                            {a.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {/* Tail pointing down to the avatar */}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-panel-bg" />
+                  </motion.div>
+                )
+              })()}
             </AnimatePresence>
 
             {/* Continuous idle bounce — inner motion layer doesn't fight the outer arrival translate */}

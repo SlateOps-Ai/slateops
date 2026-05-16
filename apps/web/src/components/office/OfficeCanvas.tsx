@@ -23,6 +23,7 @@ import { TriggerRulesPanel } from '@/components/ui/TriggerRulesPanel'
 import { GamificationPanel } from '@/components/ui/GamificationPanel'
 import { AchievementToast } from '@/components/ui/AchievementToast'
 import { UpgradePanel } from '@/components/ui/UpgradePanel'
+import { ConnectionsPanel } from '@/components/ui/ConnectionsPanel'
 import { AgentMemoryPanel } from '@/components/ui/AgentMemoryPanel'
 import { TeamPanel } from '@/components/ui/TeamPanel'
 import { ContentSchedulerPanel } from '@/components/ui/ContentSchedulerPanel'
@@ -52,6 +53,7 @@ export function OfficeCanvas() {
   const [triggersOpen,     setTriggersOpen]     = useState(false)
   const [gamificationOpen, setGamificationOpen] = useState(false)
   const [billingOpen,      setBillingOpen]      = useState(false)
+  const [connectionsOpen,  setConnectionsOpen]  = useState(false)
   const [memoryOpen,       setMemoryOpen]       = useState(false)
   const [teamOpen,         setTeamOpen]         = useState(false)
   const [playbooksOpen,    setPlaybooksOpen]    = useState(false)
@@ -228,8 +230,9 @@ export function OfficeCanvas() {
       {sceneReady && (
         <>
           <OfficeStatusBar
-            onOpenUpgrade={()     => { setBillingOpen(true); setMarketplaceOpen(false) }}
-            onOpenMarketplace={() => { setMarketplaceOpen(true); setBillingOpen(false) }}
+            onOpenUpgrade={()     => { setBillingOpen(true); setMarketplaceOpen(false); setConnectionsOpen(false) }}
+            onOpenMarketplace={() => { setMarketplaceOpen(true); setBillingOpen(false); setConnectionsOpen(false) }}
+            onOpenConnections={() => { setConnectionsOpen(true); setBillingOpen(false); setMarketplaceOpen(false) }}
           />
           <AgentAvatarDock />
           <ApprovalToast />
@@ -406,6 +409,7 @@ export function OfficeCanvas() {
             {triggersOpen     && <TriggerRulesPanel        onClose={() => setTriggersOpen(false)} />}
             {gamificationOpen && <GamificationPanel        onClose={() => setGamificationOpen(false)} />}
             {billingOpen      && <UpgradePanel             onClose={() => setBillingOpen(false)} />}
+            {connectionsOpen  && <ConnectionsPanel         onClose={() => setConnectionsOpen(false)} />}
             {memoryOpen       && <AgentMemoryPanel         onClose={() => setMemoryOpen(false)} />}
             {teamOpen         && <TeamPanel                onClose={() => setTeamOpen(false)} />}
             {schedulerStoreOpen && <ContentSchedulerPanel onClose={closeScheduler} />}

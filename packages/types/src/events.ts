@@ -9,6 +9,7 @@ export type EventType =
   | 'TASK_COMPLETE'
   | 'TASK_FAILED'
   | 'TASK_BLOCKED'
+  | 'GRANT_REQUESTED'
 
 export type ApprovalPreviewType = 'email' | 'calendar_event' | 'message' | 'document'
 
@@ -45,6 +46,14 @@ export interface AgentEventPayload {
     message: string
     userFacing: string
     retryable: boolean
+  }
+  grantRequest?: {
+    requestId:       string
+    composioAppName: string
+    label:           string
+    emoji:           string
+    reason:          string
+    isAppConnected:  boolean
   }
 }
 

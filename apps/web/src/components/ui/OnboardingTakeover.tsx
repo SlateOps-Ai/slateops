@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowRight, Loader2, Sparkles, Check } from 'lucide-react'
+import { ArrowRight, Loader2, Sparkles, Check, Plug } from 'lucide-react'
 import { useAuthFetch } from '@/hooks/useAuthFetch'
 import { useAgentsStore } from '@/stores/agents.store'
 import { cn } from '@/lib/utils'
+import { INTEGRATION_CATALOG, findCatalogApp } from '@agentcity/types'
 
 interface ComposedAgent {
   role:      string
@@ -35,11 +36,15 @@ export function OnboardingTakeover({ onComplete, onSkip }: Props) {
   const authFetch = useAuthFetch()
   const API       = process.env.NEXT_PUBLIC_API_URL
 
-  const [step, setStep]             = useState<1 | 2 | 'loading' | 'preview' | 'installing'>(1)
+  const [step, setStep]             = useState<1 | 2 | 'loading' | 'preview' | 'integrations' | 'installing'>(1)
   const [business, setBusiness]     = useState('')
   const [pain, setPain]             = useState('')
   const [team, setTeam]             = useState<ComposedAgent[]>([])
   const [error, setError]           = useState<string | null>(null)
+  const [suggestedApps,  setSuggestedApps]  = useState<string[]>([])
+  const [connectedApps,  setConnectedApps]  = useState<Set<string>>(new Set())
+  const [connectingApp,  setConnectingApp]  = useState<string | null>(null)
+  const [loadingSuggest, setLoadingSuggest] = useState(false)
   const setAgents             = useAgentsStore((s) => s.setAgents)
   const setTeamChatOpen       = useAgentsStore((s) => s.setTeamChatOpen)
   const setActiveChatAgent    = useAgentsStore((s) => s.setActiveChatAgent)
@@ -62,6 +67,72 @@ export function OnboardingTakeover({ onComplete, onSkip }: Props) {
     } catch (err) {
       setError((err as Error).message)
       setStep(2)
+    }
+  }
+
+  async function goToIntegrations() {
+    setStep('integrations')
+    setLoadingSuggest(true)
+    try {
+      const [sugRes, conRes] = await Promise.all([
+        authFetch(`${API}/api/integrations/suggest`, { method: 'POST', body: JSON.stringify({}) }),
+        authFetch(`${API}/api/integrations/connections`),
+      ])
+      const sug = await sugRes.json()
+      const con = await conRes.json()
+      const apps: string[] = Array.isArray(sug.suggestions) ? sug.suggestions : []
+      setSuggestedApps(apps)
+      setConnectedApps(new Set((con.connections ?? []).map((c: { composioAppName: string }) => c.composioAppName)))
+    } catch {
+      // Fall back to a sensible default trio
+      setSuggestedApps(['gmail', 'google_calendar', 'slack'])
+    } finally {
+      setLoadingSuggest(false)
+    }
+  }
+
+  // Listen for the OAuth popup completion message
+  useEffect(() => {
+    function onMessage(ev: MessageEvent) {
+      if (ev.origin !== window.location.origin) return
+      if (ev.data?.type !== 'composio_oauth_complete')   return
+      const appName = ev.data?.composioAppName as string | undefined
+      if (!appName) return
+      // Record the connection on the server
+      authFetch(`${API}/api/integrations/callback`, {
+        method:  'POST',
+        body:    JSON.stringify({ composioAppName: appName }),
+      })
+      .then(() => {
+        setConnectedApps((s) => new Set(s).add(appName))
+      })
+      .catch(() => {})
+      .finally(() => setConnectingApp(null))
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [API, authFetch])
+
+  async function connectApp(composioAppName: string) {
+    setConnectingApp(composioAppName)
+    try {
+      const res  = await authFetch(`${API}/api/integrations/connect`, {
+        method: 'POST',
+        body:   JSON.stringify({ composioAppName }),
+      })
+      const data = await res.json()
+      if (!data.redirectUrl) {
+        setConnectingApp(null)
+        return
+      }
+      // Open the OAuth flow in a popup so the takeover state stays alive
+      const popup = window.open(data.redirectUrl, 'composio_oauth', 'width=600,height=720,popup=1')
+      if (!popup) {
+        // Popups blocked — fall back to full redirect (state lost, but still completes)
+        window.location.href = data.redirectUrl
+      }
+    } catch {
+      setConnectingApp(null)
     }
   }
 
@@ -295,13 +366,101 @@ export function OnboardingTakeover({ onComplete, onSkip }: Props) {
                   ← Revise my answers
                 </button>
                 <button
-                  onClick={installAndComplete}
+                  onClick={goToIntegrations}
                   className={cn(
                     'flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors',
                     'bg-slate-700 hover:bg-slate-600 border border-slate-500/40 text-white',
                   )}
                 >
-                  Take me to the office <ArrowRight size={14} />
+                  Next: connect their tools <ArrowRight size={14} />
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {step === 'integrations' && (
+            <motion.div
+              key="integrations"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.25 }}
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <Plug size={14} className="text-panel-accent" />
+                <span className="text-[10px] uppercase tracking-widest text-panel-accent font-semibold">
+                  Final step — connect your tools
+                </span>
+              </div>
+              <h1 className="text-2xl font-bold text-white leading-tight mb-2">
+                Hook them up to the apps you already use.
+              </h1>
+              <p className="text-white/40 text-sm mb-6 leading-relaxed">
+                We picked a few based on what you told us. One tap each — your agents will ask before doing anything risky. You can do this later if you'd rather.
+              </p>
+
+              {loadingSuggest ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 size={20} className="text-panel-accent animate-spin" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2.5 mb-6">
+                  {suggestedApps.map((appId) => {
+                    const meta = findCatalogApp(appId)
+                    if (!meta) return null
+                    const isConnected = connectedApps.has(appId)
+                    const isConnecting = connectingApp === appId
+                    return (
+                      <button
+                        key={appId}
+                        onClick={() => !isConnected && connectApp(appId)}
+                        disabled={isConnected || !!connectingApp}
+                        className={cn(
+                          'flex items-center gap-3 px-3.5 py-3 rounded-xl border text-left transition-all',
+                          isConnected
+                            ? 'bg-emerald-400/10 border-emerald-400/30'
+                            : 'bg-white/[0.03] border-white/8 hover:bg-white/[0.06] hover:border-panel-accent/30',
+                          (!isConnected && connectingApp) && 'opacity-50 cursor-not-allowed',
+                        )}
+                      >
+                        <span className="text-xl shrink-0 leading-none">{meta.emoji}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white text-[13px] font-semibold truncate">{meta.label}</p>
+                          <p className="text-white/40 text-[10px] truncate">{meta.description}</p>
+                        </div>
+                        {isConnected ? (
+                          <Check size={14} className="text-emerald-400 shrink-0" />
+                        ) : isConnecting ? (
+                          <Loader2 size={14} className="text-panel-accent animate-spin shrink-0" />
+                        ) : (
+                          <span className="text-white/30 text-[11px] shrink-0">Connect →</span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
+              {error && (
+                <p className="text-red-400 text-xs mb-3 text-center">{error}</p>
+              )}
+
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => setStep('preview')}
+                  className="text-white/40 hover:text-white text-xs transition-colors"
+                >
+                  ← Back
+                </button>
+                <button
+                  onClick={installAndComplete}
+                  disabled={!!connectingApp}
+                  className={cn(
+                    'flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors',
+                    'bg-slate-700 hover:bg-slate-600 border border-slate-500/40 text-white disabled:opacity-50',
+                  )}
+                >
+                  {connectedApps.size > 0 ? 'Take me to the office' : 'Skip and take me to the office'} <ArrowRight size={14} />
                 </button>
               </div>
             </motion.div>

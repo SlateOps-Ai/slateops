@@ -8,6 +8,7 @@ import { callMcpTool } from '../../lib/mcp.js'
 import type { McpTool } from '../../lib/mcp.js'
 import type { AgentGraphState } from '../graph.js'
 import { getExecutor } from '../executor-registry.js'
+import { appForToolName, findCatalogApp } from '@agentcity/types'
 
 function scoreKnowledge(items: Array<{ title: string; content: string }>, instruction: string): Array<{ title: string; content: string }> {
   const words = instruction.toLowerCase().split(/\W+/).filter((w) => w.length > 3)
@@ -238,9 +239,83 @@ export async function executeStepNode(state: AgentGraphState): Promise<Partial<A
           }
         }
 
-        // MCP tool: route to the appropriate server
+        // Per-agent integration grant check (skip MCP tools — they're scoped at server-attach time)
         let toolOutput: unknown
         const mcpTarget = mcpToolMap.get(toolUse.name)
+        if (!mcpTarget) {
+          const app = appForToolName(toolUse.name)
+          if (app) {
+            const grant = await prisma.agentIntegrationGrant.findFirst({
+              where: {
+                agentId,
+                integration: { composioAppName: app.composioAppName, isActive: true },
+              },
+              select: { id: true },
+            })
+            if (!grant) {
+              // Surface a pending grant request (de-duped on agent+app+PENDING)
+              const existing = await prisma.integrationGrantRequest.findFirst({
+                where: { agentId, composioAppName: app.composioAppName, status: 'PENDING' },
+                select: { id: true },
+              })
+              const requestId = existing?.id ?? (await prisma.integrationGrantRequest.create({
+                data: {
+                  agentId,
+                  composioAppName: app.composioAppName,
+                  toolName:        toolUse.name,
+                  reason:          `Needs access to ${app.label} for "${toolUse.name.replace(/_/g, ' ').toLowerCase()}".`,
+                  status:          'PENDING',
+                },
+                select: { id: true },
+              })).id
+
+              // Connected at the account level but not granted to this agent?
+              const isAppConnected = !!(await prisma.integration.findFirst({
+                where: {
+                  composioAppName: app.composioAppName,
+                  isActive:        true,
+                  user:            { agents: { some: { id: agentId } } },
+                },
+                select: { id: true },
+              }))
+
+              await emitEvent(agentId, {
+                type: 'GRANT_REQUESTED',
+                taskId,
+                agentId,
+                payload: {
+                  toolName:      toolUse.name,
+                  thoughtBubble: `Asking for ${app.label} access…`,
+                  grantRequest:  {
+                    requestId,
+                    composioAppName: app.composioAppName,
+                    label:           app.label,
+                    emoji:           app.emoji,
+                    reason:          `Needs access to ${app.label}`,
+                    isAppConnected,
+                  },
+                },
+              })
+
+              toolOutput = {
+                error: `Tool "${toolUse.name}" needs ${app.label} access. The user has been asked to grant permission — continue with what you have, summarise what you would have done, and produce a written result instead.`,
+              }
+              toolResultContent.push({
+                type:        'tool_result',
+                tool_use_id: toolUse.id,
+                content:     JSON.stringify(toolOutput),
+              })
+              continue
+            }
+            // Touch lastUsedAt (non-blocking)
+            prisma.agentIntegrationGrant.updateMany({
+              where: { agentId, integration: { composioAppName: app.composioAppName } },
+              data:  { lastUsedAt: new Date() },
+            }).catch(() => {})
+          }
+        }
+
+        // MCP tool: route to the appropriate server
         const executor = getExecutor(taskId)
         if (!executor) {
           toolOutput = { error: `Tool "${toolUse.name}" executor not available. Use your own knowledge to complete the task.` }

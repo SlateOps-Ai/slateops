@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Zap, Users, CheckSquare, Star, Store } from 'lucide-react'
+import { Zap, Users, CheckSquare, Star, Store, Plug } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthFetch } from '@/hooks/useAuthFetch'
 import { useAgentsStore } from '@/stores/agents.store'
@@ -16,9 +16,10 @@ interface UserSettings {
 interface Props {
   onOpenUpgrade?:     () => void
   onOpenMarketplace?: () => void
+  onOpenConnections?: () => void
 }
 
-export function OfficeStatusBar({ onOpenUpgrade, onOpenMarketplace }: Props) {
+export function OfficeStatusBar({ onOpenUpgrade, onOpenMarketplace, onOpenConnections }: Props) {
   const authFetch = useAuthFetch()
   const API       = process.env.NEXT_PUBLIC_API_URL
   const agents    = useAgentsStore((s) => s.agents)
@@ -53,6 +54,15 @@ export function OfficeStatusBar({ onOpenUpgrade, onOpenMarketplace }: Props) {
     <div className="absolute top-4 right-4 z-20 flex items-center gap-1.5">
 
       {/* Action buttons */}
+      {onOpenConnections && (
+        <button
+          onClick={onOpenConnections}
+          className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-panel-bg px-2.5 py-1.5 backdrop-blur-sm text-xs text-panel-muted hover:text-white hover:border-white/20 transition-colors"
+        >
+          <Plug size={11} className="shrink-0" />
+          <span>Connections</span>
+        </button>
+      )}
       {onOpenMarketplace && (
         <button
           onClick={onOpenMarketplace}

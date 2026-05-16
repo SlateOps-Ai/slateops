@@ -83,10 +83,27 @@ interface AgentsState {
 
 export interface AgentNotification {
   id:        string
-  type:      'insight' | 'alert' | 'opportunity' | 'update'
+  type:      'insight' | 'alert' | 'opportunity' | 'update' | 'grant'
   headline:  string
   body?:     string
   createdAt: string
+  /**
+   * Optional inline action buttons. Renders inside the speech bubble.
+   * The handler is identified by `id` and resolved in AgentAvatarDock.
+   */
+  actions?: Array<{
+    id:    'grant_once' | 'grant_always' | 'deny' | 'connect_and_grant'
+    label: string
+    style?: 'primary' | 'subtle' | 'danger'
+  }>
+  /**
+   * Carrier for action handlers — these fields are set when type === 'grant'.
+   */
+  grant?: {
+    requestId:       string
+    composioAppName: string
+    isAppConnected:  boolean
+  }
 }
 
 export const useAgentsStore = create<AgentsState>((set) => ({
