@@ -517,6 +517,11 @@ function AgentChatArea({
                 )}
               </div>
             </div>
+            {/* SlateOps mark anchors user messages on the right, mirroring
+                the agent avatar that anchors assistant messages on the left. */}
+            {m.role === 'user' && (
+              <SlateCaretLogo size={28} variant="amber" animate={false} className="shrink-0 mb-0.5" />
+            )}
           </div>
         ))
         })()}
