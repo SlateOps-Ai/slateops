@@ -1,4 +1,4 @@
-import { ComposioToolSet } from 'composio-core'
+import { getComposioClient } from '../lib/composio.js'
 import { prisma } from '../lib/prisma.js'
 
 export type PublishResult = {
@@ -34,17 +34,13 @@ const PLATFORM_ACTION: Record<string, string> = {
   PINTEREST: 'PINTEREST_CREATE_PIN',
 }
 
-function makeToolset() {
-  return new ComposioToolSet({ apiKey: process.env.COMPOSIO_API_KEY })
-}
-
 export async function publishPost(
   userId: string,
   platforms: string[],
   content: string,
   _mediaUrls: string[] = [],
 ): Promise<PublishResult[]> {
-  const toolset = makeToolset()
+  const composio = getComposioClient()
   const results: PublishResult[] = []
 
   for (const platform of platforms) {
@@ -57,10 +53,9 @@ export async function publishPost(
     try {
       const params: Record<string, unknown> = buildPlatformParams(platform.toUpperCase(), content)
 
-      const result = await toolset.executeAction({
-        action,
-        params,
-        entityId: userId,
+      const result = await composio.tools.execute(action, {
+        userId,
+        arguments: params,
       })
 
       if ((result as any)?.successful === false) {
@@ -97,22 +92,20 @@ export async function getConnectionStatus(
   platforms: string[],
 ): Promise<Record<string, SocialAccountInfo>> {
   try {
-    const toolset  = makeToolset()
-    const entity   = toolset.client.getEntity(userId)
-    const accounts = await entity.getConnections() as any[]
+    const composio = getComposioClient()
+    const accounts = await composio.connectedAccounts.list({ userIds: [userId] } as any)
 
     const byApp = new Map<string, any>()
-    for (const a of accounts) {
-      const key = (a.appName as string)?.toUpperCase() ?? ''
-      if (key && a.status === 'ACTIVE') byApp.set(key, a)
+    for (const a of accounts.items as any[]) {
+      const key = (a.toolkit?.slug ?? a.appName ?? a.app_name ?? '').toString().toUpperCase()
+      if (key && (a.status === 'ACTIVE' || a.status === 'active')) byApp.set(key, a)
     }
 
     return Object.fromEntries(
       platforms.map((p) => {
         const acct = byApp.get(p.toUpperCase())
         if (!acct) return [p, { connected: false }]
-        // Composio may expose username in metadata fields
-        const meta   = acct.connectionParams ?? acct.metadata ?? {}
+        const meta   = acct.state?.val ?? acct.connectionData?.val ?? acct.metadata ?? {}
         const handle = meta.username ?? meta.screen_name ?? meta.handle ?? meta.login ?? meta.email ?? null
         const display = meta.name ?? meta.displayName ?? meta.full_name ?? handle ?? null
         return [p, { connected: true, handle: handle ?? undefined, displayName: display ?? undefined }]
@@ -136,19 +129,19 @@ export const COMPOSIO_APP_NAME: Record<string, string> = {
 }
 
 export async function getOAuthUrl(userId: string, platform: string, webUrl: string): Promise<string> {
-  const appName = COMPOSIO_APP_NAME[platform.toUpperCase()] ?? platform.toLowerCase()
-  const toolset = makeToolset()
-  const entity  = toolset.client.getEntity(userId)
-  // authMode + authConfig (even empty) sets useComposioAuth=true so Composio
-  // uses its own managed OAuth app instead of requiring a pre-created integrationId
-  const connection = await entity.initiateConnection({
-    appName,
-    authMode:   'OAUTH2' as any,
-    authConfig: {},
-    redirectUri: `${webUrl}/office?socialConnected=${platform.toLowerCase()}`,
-  })
-  if (!connection?.redirectUrl) throw new Error(`Could not generate OAuth URL for ${platform}`)
-  return connection.redirectUrl
+  const appName  = COMPOSIO_APP_NAME[platform.toUpperCase()] ?? platform.toLowerCase()
+  const composio = getComposioClient()
+  // Find the Composio-managed Auth Config for this toolkit
+  const authConfigs = await composio.authConfigs.list({ toolkit: appName })
+  const active = authConfigs.items.find((c: any) => c.enabled !== false)
+  if (!active) throw new Error(`No Auth Config set up for "${appName}" — add it in the Composio dashboard (Toolkits → ${appName} → + Add to Project).`)
+
+  const conn = await composio.connectedAccounts.link(userId, active.id, {
+    callbackUrl:   `${webUrl}/office?socialConnected=${platform.toLowerCase()}`,
+    allowMultiple: true,
+  } as any)
+  if (!conn.redirectUrl) throw new Error(`Could not generate OAuth URL for ${platform}`)
+  return conn.redirectUrl
 }
 
 // Background job: publish all due scheduled posts

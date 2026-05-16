@@ -25,7 +25,6 @@
     "@langchain/langgraph": "^0.2.19",
     "@langchain/langgraph-checkpoint-postgres": "^1.0.1",
     "@prisma/client": "^5.17.0",
-    "composio-core": "^0.5.7",
     "fastify": "^4.28.1",
     "fastify-plugin": "^4.5.1",
     "fastify-socket.io": "^4.0.0",
