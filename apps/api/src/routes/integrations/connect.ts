@@ -84,13 +84,37 @@ export default async function integrationsRoute(app: FastifyInstance) {
     const callbackUrl = `${process.env.WEB_URL ?? 'http://localhost:3000'}/oauth-callback?connected=${composioAppName}`
 
     try {
-      const connection = await entity.initiateConnection({
-        appName:     composioAppName,
-        redirectUri: callbackUrl,
-      })
+      // Composio's new Platform requires an Auth Config (formerly "Integration")
+      // per app, set up in the dashboard. We look it up dynamically by app key
+      // so the user only has to configure it once on the Composio side.
+      let integrationId: string | undefined
+      try {
+        const list = await toolset.client.integrations.list({ appUniqueKeys: [composioAppName] } as any)
+        const items = (list as any)?.items ?? (list as any) ?? []
+        const active = (items as any[]).find((i: any) =>
+          (i.appName?.toLowerCase?.() === composioAppName || i.appUniqueKey === composioAppName) &&
+          i.enabled !== false
+        )
+        integrationId = active?.id
+      } catch (lookupErr) {
+        // Lookup failed — fall through and try the bare appName flow as a
+        // last resort (works on the older Composio API).
+        // eslint-disable-next-line no-console
+        console.warn('[connect] integration lookup failed for', composioAppName, ':', (lookupErr as Error).message)
+      }
+
+      const connection = await entity.initiateConnection(
+        integrationId
+          ? { integrationId, redirectUri: callbackUrl }
+          : { appName: composioAppName, redirectUri: callbackUrl }
+      )
       return reply.send({ redirectUrl: connection.redirectUrl })
     } catch (err) {
-      return reply.code(502).send({ error: 'Could not initiate OAuth', detail: (err as Error).message })
+      return reply.code(502).send({
+        error:  'Could not initiate OAuth',
+        detail: (err as Error).message,
+        hint:   `Make sure an Auth Config is set up for "${composioAppName}" in the Composio dashboard (Toolkits → ${composioAppName} → Add to Project).`,
+      })
     }
   })
 
