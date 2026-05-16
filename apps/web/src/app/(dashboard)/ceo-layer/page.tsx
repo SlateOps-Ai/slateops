@@ -86,6 +86,48 @@ function timeLeft(iso: string) {
   const m = Math.floor(diff / 60000)
   return m < 60 ? `${m}m left` : `${Math.floor(m / 60)}h left`
 }
+/**
+ * Render an agent's status as a single in-character sentence — the kind of
+ * thing they'd actually say at a standup. Picks a template based on what's
+ * happening in their queue (approvals waiting → failures → in-flight → done
+ * → idle). No LLM call; deterministic from the AgentStats shape.
+ */
+function agentVoiceLine(agent: AgentStats): string {
+  const { complete, failed, inProgress, needsApproval, total } = agent.tasks
+
+  // Priority 1: needs your decision (highest-leverage to surface)
+  if (needsApproval > 0) {
+    const prefix = complete > 0 ? `I tackled ${complete} of ${total}. ` : ''
+    const verb   = needsApproval === 1 ? 'still needs your call' : 'still need your call'
+    return `${prefix}${needsApproval} ${verb}.`
+  }
+
+  // Priority 2: failures — honesty over polish
+  if (failed > 0) {
+    if (complete > 0) {
+      const word = complete === 1 ? 'thing' : 'things'
+      return `Closed ${complete} ${word}, but ${failed} ran into trouble — flagged for you.`
+    }
+    return `${failed} ${failed === 1 ? 'task' : 'tasks'} ran into trouble — flagged for you.`
+  }
+
+  // Priority 3: actively working
+  if (inProgress > 0) {
+    const word = inProgress === 1 ? 'thing' : 'things'
+    const done = complete > 0 ? `${complete} done already. ` : ''
+    return `${done}Working through ${inProgress} ${word} right now.`
+  }
+
+  // Priority 4: done and dusted
+  if (complete > 0) {
+    const word = complete === 1 ? 'thing' : 'things'
+    return `Got ${complete} ${word} done. Ready for more.`
+  }
+
+  // Idle
+  return 'Quiet day so far — ready when you need me.'
+}
+
 function actionIcon(action: string) {
   const a = action.toLowerCase()
   if (a.includes('email') || a.includes('mail'))                              return <Mail       size={11} className="text-blue-400" />
@@ -423,6 +465,45 @@ export default function CeoLayerPage() {
                 </p>
               </>
             )}
+          </div>
+        </section>
+      )}
+
+      {/* ── Team briefing — each agent's status in their own voice ─────── */}
+      {!loading && (exec?.agents.length ?? 0) > 0 && (
+        <section className="shrink-0 px-6 py-5 border-b border-white/[0.05] bg-[#080b14]">
+          <p className="text-[10px] uppercase tracking-widest text-white/30 font-semibold mb-3">
+            Team briefing
+          </p>
+          <div className="flex gap-3 overflow-x-auto scrollbar-none pb-1">
+            {exec!.agents.map((agent) => (
+              <div
+                key={agent.id}
+                className="min-w-[280px] max-w-[320px] flex items-start gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3.5 shrink-0"
+              >
+                <div className="relative w-9 h-9 rounded-full overflow-hidden shrink-0 ring-1 ring-white/10">
+                  {agent.avatarUrl
+                    ? <img src={agent.avatarUrl} alt={agent.name} className="w-full h-full object-cover" />
+                    : <div className="w-full h-full bg-white/[0.04] flex items-center justify-center text-white/40 text-sm font-bold">{agent.name[0]}</div>}
+                  <span className={cn(
+                    'absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-[#080b14]',
+                    agent.status === 'WORKING' ? 'bg-lamp-working' :
+                    agent.status === 'BLOCKED' ? 'bg-lamp-blocked' :
+                    agent.status === 'IDLE'    ? 'bg-lamp-idle' :
+                    'bg-white/20',
+                  )} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-1.5">
+                    <p className="text-white text-[12px] font-semibold leading-tight truncate">{agent.name}</p>
+                    <p className="text-white/40 text-[9px] truncate">{ROLE_LABEL[agent.role] ?? agent.role}</p>
+                  </div>
+                  <p className="text-white/75 text-[12px] leading-relaxed mt-2 italic">
+                    “{agentVoiceLine(agent)}”
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
       )}
