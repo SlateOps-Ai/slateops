@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
 import {
@@ -266,6 +266,26 @@ export default function CeoLayerPage() {
   const alerts       = [...(exec?.pendingActions ?? []), ...(exec?.recentFailed ?? [])]
   const lastUpdated   = lastFetch ? `${Math.floor((Date.now() - lastFetch.getTime()) / 1000)}s ago` : null
 
+  // ── Hero state: what *you* need to attend to right now ─────────────────────
+  const pendingCount      = data?.pendingCount ?? 0
+  const pendingAgentNames = Array.from(new Set((data?.pendingApprovals ?? []).map((a) => a.agentName)))
+  const approvalQueueRef  = useRef<HTMLDivElement>(null)
+  function focusApprovals() {
+    approvalQueueRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    // Tiny flash so the user sees where we landed them
+    const el = approvalQueueRef.current
+    if (el) {
+      el.classList.add('ring-2', 'ring-amber-400/60', 'transition-shadow')
+      setTimeout(() => el.classList.remove('ring-2', 'ring-amber-400/60'), 900)
+    }
+  }
+  function namesPhrase(names: string[]) {
+    if (names.length === 0) return ''
+    if (names.length === 1) return names[0]
+    if (names.length === 2) return `${names[0]} and ${names[1]}`
+    return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`
+  }
+
   return (
     <div className="min-h-screen bg-[#080b14] text-white flex flex-col">
 
@@ -302,6 +322,50 @@ export default function CeoLayerPage() {
 
       </header>
 
+      {/* ── Hero — the only number that matters when you open this page ── */}
+      {!loading && (
+        <section
+          onClick={pendingCount > 0 ? focusApprovals : undefined}
+          className={cn(
+            'shrink-0 px-6 py-6 border-b border-white/[0.05] transition-colors',
+            pendingCount > 0
+              ? 'bg-gradient-to-b from-amber-400/[0.06] to-transparent cursor-pointer hover:from-amber-400/[0.09]'
+              : 'bg-gradient-to-b from-emerald-400/[0.04] to-transparent',
+          )}
+        >
+          <div className="max-w-5xl">
+            {pendingCount > 0 ? (
+              <>
+                <h1 className="text-3xl md:text-4xl font-bold tracking-tight leading-tight text-white antialiased">
+                  <span className="text-amber-400 tabular-nums">{pendingCount}</span>{' '}
+                  {pendingCount === 1 ? 'decision' : 'decisions'} waiting for you.
+                </h1>
+                <p className="text-white/55 text-sm mt-2 leading-relaxed">
+                  {pendingAgentNames.length > 0 ? (
+                    <>
+                      <span className="text-white/80">{namesPhrase(pendingAgentNames)}</span>{' '}
+                      {pendingAgentNames.length === 1 ? 'needs' : 'need'} your call.
+                    </>
+                  ) : 'Tap to review the queue.'}{' '}
+                  <span className="inline-flex items-center gap-1 text-amber-400 font-medium hover:underline">
+                    Review now <ChevronRight size={13} />
+                  </span>
+                </p>
+              </>
+            ) : (
+              <>
+                <h1 className="text-3xl md:text-4xl font-bold tracking-tight leading-tight text-white antialiased">
+                  <span className="text-emerald-400">All clear.</span> Nothing waiting for you.
+                </h1>
+                <p className="text-white/45 text-sm mt-2 leading-relaxed">
+                  Your team is running clean. Scroll down for what they got done.
+                </p>
+              </>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* ── Body ───────────────────────────────────────────────────────── */}
       {loading ? (
         <div className="flex-1 flex items-center justify-center">
@@ -315,7 +379,7 @@ export default function CeoLayerPage() {
 
           {/* ── Panel 1: Approval Queue + ROI ───────────────────────── */}
           <div className="w-[32%] flex flex-col gap-4">
-          <div className="h-[12cm] flex flex-col rounded-2xl border border-white/[0.07] bg-[#0d1117] overflow-hidden shadow-xl shadow-black/30">
+          <div ref={approvalQueueRef} className="h-[12cm] flex flex-col rounded-2xl border border-white/[0.07] bg-[#0d1117] overflow-hidden shadow-xl shadow-black/30 scroll-mt-6">
             <div className="px-5 py-4 border-b border-white/[0.06] shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-7 h-7 rounded-lg bg-amber-400/10 border border-amber-400/20 flex items-center justify-center shrink-0">
