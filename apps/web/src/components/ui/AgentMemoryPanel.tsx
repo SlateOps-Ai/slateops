@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   X, Brain, Plus, Trash2, Edit3, Check, ChevronDown,
-  Bot, Sparkles, User, Loader2, GripHorizontal,
+  Bot, Sparkles, User, Loader2,
 } from 'lucide-react'
 import { useAuthFetch } from '@/hooks/useAuthFetch'
 import { useAgentsStore } from '@/stores/agents.store'
@@ -68,7 +68,6 @@ export function AgentMemoryPanel({ onClose }: Props) {
   // null we use the default top-right corner via Tailwind classes. After the
   // first drag we switch to absolute pixel positioning.
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
-  const [isDragging, setIsDragging] = useState(false)
   const dragRef  = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(null)
   const panelRef = useRef<HTMLDivElement | null>(null)
 
@@ -108,7 +107,6 @@ export function AgentMemoryPanel({ onClose }: Props) {
       startX: e.clientX, startY: e.clientY,
       baseX:  base.x,    baseY:  base.y,
     }
-    setIsDragging(true)
 
     const onMove = (ev: MouseEvent) => {
       const s = dragRef.current
@@ -121,7 +119,6 @@ export function AgentMemoryPanel({ onClose }: Props) {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup',   onUp)
       dragRef.current = null
-      setIsDragging(false)
       // Persist the final position.
       setPos((p) => {
         if (p && typeof window !== 'undefined') {
@@ -221,18 +218,15 @@ export function AgentMemoryPanel({ onClose }: Props) {
       className={containerClass}
       style={positioned ? { left: pos!.x, top: pos!.y } : undefined}
     >
-      {/* Header — also the drag handle. Single click does nothing special;
-          mousedown starts a drag; double-click resets to the default corner. */}
+      {/* Header — also the drag handle. cursor-move matches every other
+          draggable panel in the app (WorkflowBuilder, Settings, etc.).
+          Double-click resets to the default corner. */}
       <div
         onMouseDown={handleHeaderMouseDown}
         onDoubleClick={handleHeaderDoubleClick}
-        className={cn(
-          'flex items-center gap-2 px-4 py-3 border-b border-white/10 shrink-0 select-none transition-colors',
-          isDragging ? 'cursor-grabbing bg-white/[0.04]' : 'cursor-grab hover:bg-white/[0.02]',
-        )}
+        className="flex items-center gap-2 px-4 py-3 border-b border-white/10 shrink-0 cursor-move select-none"
         title="Drag to move · double-click to reset position"
       >
-        <GripHorizontal size={12} className="text-panel-muted/60 shrink-0" />
         <Brain size={13} className="text-panel-accent shrink-0" />
         <span className="text-white text-xs font-medium flex-1">Agent Memory</span>
         <button
