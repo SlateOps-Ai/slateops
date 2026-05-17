@@ -175,12 +175,16 @@ export function OfficeCanvas() {
   // ── 2. Load agents + tasks from API into Zustand ─────────────────
   useEffect(() => {
     const base = process.env.NEXT_PUBLIC_API_URL
+    // 15s timeout — without this, a hung API leaves the cockpit on
+    // "Loading…" indefinitely with no error surfaced to the user.
+    const controller = new AbortController()
+    const timeoutId  = setTimeout(() => controller.abort(), 15_000)
     Promise.all([
-      authFetch(`${base}/api/agents`).then((r) => {
+      authFetch(`${base}/api/agents`, { signal: controller.signal }).then((r) => {
         if (!r.ok) throw new Error(`/api/agents ${r.status}`)
         return r.json()
       }),
-      authFetch(`${base}/api/tasks?limit=20`).then((r) => {
+      authFetch(`${base}/api/tasks?limit=20`, { signal: controller.signal }).then((r) => {
         if (!r.ok) throw new Error(`/api/tasks ${r.status}`)
         return r.json()
       }),
@@ -208,9 +212,13 @@ export function OfficeCanvas() {
         // staring at a non-responsive office wondering what was wrong.
         // eslint-disable-next-line no-console
         console.error('[SlateOps] Agents/tasks fetch failed:', err)
-        setApiError((err as Error).message ?? 'Could not reach the API')
+        const msg = (err as Error).name === 'AbortError'
+          ? 'API request timed out (15s). Restart apps/api and refresh.'
+          : (err as Error).message ?? 'Could not reach the API'
+        setApiError(msg)
         setFirstRunLock(true)
       })
+      .finally(() => clearTimeout(timeoutId))
   }, [setAgents, setTasks, authFetch])
 
   // ── 3. Wire socket events → XState directors ────────────────────
