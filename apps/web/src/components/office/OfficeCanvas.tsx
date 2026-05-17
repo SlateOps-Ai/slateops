@@ -2,8 +2,9 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Sparkles, Shield } from 'lucide-react'
+import { Shield } from 'lucide-react'
 import { SlateCaretLogo } from '@/components/branding/SlateCaretLogo'
+import { CockpitHero } from '@/components/ui/CockpitHero'
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
 import { OfficeScene } from '@/lib/pixi/scene'
@@ -246,56 +247,10 @@ export function OfficeCanvas() {
         style={{ background: 'radial-gradient(ellipse 50% 40% at 30% 55%, rgba(77,127,255,0.06) 0%, transparent 65%)' }}
       />
 
-      {/* ── Centred branding — offset right to account for sidebar ── */}
-      <div className="absolute left-[184px] right-0 top-0 bottom-0 flex flex-col items-center justify-start pt-4 z-10 pointer-events-none select-none gap-4">
-        {/* Icon + wordmark — items-baseline so the mark's bottom edge sits on
-            the wordmark baseline, level with the lowercase "s" of "slate". */}
-        <div className="flex items-baseline gap-5">
-          <div className="relative shrink-0">
-            <div className="absolute inset-0 rounded-2xl bg-amber-400/25 blur-2xl scale-150" />
-            <SlateCaretLogo size={64} variant="amber" className="relative block" />
-          </div>
-          {/* Wordmark — lowercase with a blinking caret divider, echoing the
-              SlateText typewriter pattern. The caret is the brand mark.
-              Sized to the x-height so it visually rests with the lowercase
-              letter mass instead of towering above it. */}
-          <p className="text-[90px] font-bold tracking-tight leading-none text-white flex items-baseline">
-            <span>slate</span>
-            <span
-              aria-hidden
-              className="inline-block w-[5px] mx-[10px] bg-amber-400 rounded-[2px] animate-pulse"
-              style={{
-                animationDuration: '0.7s',
-                // Caret spans from just below the baseline (matching the "p"
-                // descender) up to roughly cap-height, so it visibly extends
-                // above AND below the lowercase "e".
-                height:    '0.95em',
-                transform: 'translateY(0.18em)',
-              }}
-            />
-            <span>ops</span>
-          </p>
-        </div>
-
-        {/* Tagline */}
-        <p className="text-[16px] tracking-[0.3em] uppercase text-white/50 font-light">
-          Your AI&#8209;Powered Office
-        </p>
-
-        {/* Status dots */}
-        <div className="flex items-center gap-5 mt-1">
-          {[
-            { color: 'bg-lamp-done',    label: 'Agents' },
-            { color: 'bg-panel-accent', label: 'Tasks' },
-            { color: 'bg-lamp-idle',    label: 'Automations' },
-          ].map(({ color, label }) => (
-            <div key={label} className="flex items-center gap-2">
-              <span className={`w-1.5 h-1.5 rounded-full ${color}`} />
-              <span className="text-[12px] text-white/40 tracking-wide">{label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* ── Cockpit hero: situation line + command bar — replaces the old
+          giant wordmark / tagline / legend dots. The big wordmark belonged
+          on the marketing site; this view is an app. ── */}
+      <CockpitHero />
 
       {/* UI renders unconditionally — Pixi scene is decorative and may not be ready */}
       <>
