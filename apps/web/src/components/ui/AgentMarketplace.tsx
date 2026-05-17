@@ -22,6 +22,7 @@ export function AgentMarketplace({ onClose }: Props) {
   const [installing, setInstalling] = useState<string | null>(null)
   const [installed,  setInstalled]  = useState<Set<string>>(new Set())
   const [selected,   setSelected]   = useState<typeof AGENT_TEMPLATES[0] | null>(null)
+  const [error,      setError]      = useState<string | null>(null)
 
   const filtered = AGENT_TEMPLATES.filter((t) => {
     const matchesCategory = category === 'All' || t.category === category
@@ -34,12 +35,21 @@ export function AgentMarketplace({ onClose }: Props) {
 
   async function install(template: typeof AGENT_TEMPLATES[0]) {
     setInstalling(template.id)
+    setError(null)
     try {
       const res  = await authFetch(`${API}/api/marketplace/install`, {
         method: 'POST',
         body:   JSON.stringify({ templateId: template.id }),
       })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
+
+      // Surface API errors instead of swallowing them — previously a 400 or
+      // 404 made the panel close with no indication that anything was wrong.
+      if (!res.ok) {
+        setError(data?.error ?? `Hire failed (HTTP ${res.status}).`)
+        return
+      }
+
       if (data.agent) {
         addAgent(data.agent)
         // Trigger the "walking through the door" animation in
@@ -48,10 +58,12 @@ export function AgentMarketplace({ onClose }: Props) {
         // The dock calls markAgentArrived once the walk completes.
         setArrivingAgentIds([...arrivingAgentIds, data.agent.id])
         setInstalled((prev) => new Set([...prev, template.id]))
+        setSelected(null)
       }
-    } catch { /* silent */ } finally {
+    } catch (err) {
+      setError((err as Error)?.message ?? 'Could not reach the server.')
+    } finally {
       setInstalling(null)
-      setSelected(null)
     }
   }
 
@@ -138,6 +150,11 @@ export function AgentMarketplace({ onClose }: Props) {
                 ))}
               </div>
             </div>
+            {error && (
+              <div className="rounded-lg border border-lamp-blocked/30 bg-lamp-blocked/10 px-3 py-2 text-[11px] text-lamp-blocked">
+                {error}
+              </div>
+            )}
             <button
               onClick={() => install(selected)}
               disabled={installing === selected.id || installed.has(selected.id)}
