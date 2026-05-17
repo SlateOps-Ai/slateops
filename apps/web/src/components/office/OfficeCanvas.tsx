@@ -77,6 +77,8 @@ export function OfficeCanvas() {
   const schedulerStoreOpen = useAgentsStore((s) => s.schedulerOpen)
   const closeScheduler  = useAgentsStore((s) => s.closeScheduler)
   const agentsCount     = useAgentsStore((s) => s.agents.length)
+  const agentsList      = useAgentsStore((s) => s.agents)
+  const tasksList       = useAgentsStore((s) => s.tasks)
   const teamChatOpen    = useAgentsStore((s) => s.teamChatOpen)
   const authFetch  = useAuthFetch()
 
@@ -251,7 +253,7 @@ export function OfficeCanvas() {
 
       {/* ── Ambient glow — atmosphere only, pointer-events-none ── */}
       <div
-        className="absolute left-[184px] right-0 top-0 bottom-0 z-10 pointer-events-none"
+        className="absolute left-[200px] right-0 top-0 bottom-0 z-10 pointer-events-none"
         style={{ background: 'radial-gradient(ellipse 50% 40% at 30% 55%, rgba(77,127,255,0.06) 0%, transparent 65%)' }}
       />
 
@@ -318,17 +320,31 @@ export function OfficeCanvas() {
                 ],
               },
             ]
+            // ── Today panel data ─────────────────────────────────────────────
+            // Three glanceable numbers pulled from the existing store. Replaces
+            // the dead vertical space between the CEO Cockpit button and the
+            // nav groups with a small live status board.
+            const startOfToday = (() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime() })()
+            const tasksToday   = tasksList.filter(
+              (t) => t.status === 'COMPLETE' && t.completedAt && new Date(t.completedAt).getTime() >= startOfToday,
+            ).length
+            const idleCount   = agentsList.filter((a) => a.status === 'IDLE').length
+            const workingCount = agentsList.filter((a) => a.status === 'WORKING').length
+
             return (
-              <div className="absolute left-3 top-3 bottom-3 z-40 w-[184px] flex flex-col bg-panel-bg/96 backdrop-blur-md rounded-2xl shadow-2xl overflow-hidden antialiased subpixel-antialiased">
-                {/* Wordmark */}
-                <div className="flex items-center gap-2.5 px-4 py-3 border-b border-white/[0.06] shrink-0">
-                  <SlateCaretLogo size={22} variant="amber" />
-                  <span className="text-[13px] font-bold text-white tracking-tight flex items-baseline">
+              <div className="absolute left-3 top-3 bottom-3 z-40 w-[200px] flex flex-col bg-panel-bg/96 backdrop-blur-md rounded-2xl shadow-2xl overflow-hidden antialiased subpixel-antialiased">
+                {/* Wordmark — bumped to be a proper anchor for the app, not
+                    just the first list item. Amber-tinted underline echoes the
+                    caret and adds brand density without re-introducing the
+                    giant center-stage hero. */}
+                <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-amber-400/15 shrink-0">
+                  <SlateCaretLogo size={32} variant="amber" />
+                  <span className="text-[18px] font-bold text-white tracking-tight flex items-baseline">
                     <span>slate</span>
                     <span
                       aria-hidden
-                      className="inline-block w-[2px] mx-[2px] bg-amber-400 rounded-[1px] animate-pulse"
-                      style={{ animationDuration: '0.7s', height: '0.95em', transform: 'translateY(0.15em)' }}
+                      className="inline-block w-[3px] mx-[3px] bg-amber-400 rounded-[1.5px] animate-pulse"
+                      style={{ animationDuration: '0.7s', height: '0.95em', transform: 'translateY(0.18em)' }}
                     />
                     <span>ops</span>
                   </span>
@@ -337,7 +353,7 @@ export function OfficeCanvas() {
                 {/* Control Layer CTA */}
                 <button
                   onClick={() => router.push('/ceo-layer')}
-                  className="mx-3 mt-2 mb-1 flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-amber-400/10 hover:bg-amber-400/15 transition-colors"
+                  className="mx-3 mt-3 mb-1 flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-amber-400/10 hover:bg-amber-400/15 transition-colors"
                 >
                   <Shield size={14} className="text-amber-400 shrink-0" />
                   <span className="text-[15px] font-bold text-amber-300 flex-1 text-left tracking-tight antialiased">CEO Cockpit</span>
@@ -348,8 +364,25 @@ export function OfficeCanvas() {
                   )}
                 </button>
 
-                {/* Nav — pinned to the bottom of the sidebar (flex push-down),
-                    no scroll. The empty space above is intentional whitespace. */}
+                {/* Today panel — three live stats. Replaces the previous
+                    "intentional whitespace" with a glanceable status board. */}
+                <div className="mx-3 mt-3 mb-1 rounded-xl bg-white/[0.025] border border-white/[0.05] overflow-hidden">
+                  <p className="px-3 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-white/40">Today</p>
+                  {[
+                    { label: 'Tasks completed', value: tasksToday, color: 'text-emerald-300' },
+                    { label: 'Agents working',  value: workingCount, color: workingCount > 0 ? 'text-panel-accent' : 'text-white/60' },
+                    { label: 'Agents idle',     value: idleCount,    color: 'text-white/70' },
+                    { label: 'Pending review',  value: pendingCount, color: pendingCount > 0 ? 'text-amber-300' : 'text-white/60' },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className="flex items-center justify-between px-3 py-1.5 text-[11px]">
+                      <span className="text-white/55">{label}</span>
+                      <span className={cn('font-semibold tabular-nums', color)}>{value}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Nav — bottom-anchored. Today panel above fills the dead
+                    space so the nav no longer floats alone at the floor. */}
                 <div className="flex-1 flex flex-col justify-end overflow-hidden pb-2">
                   {NAV_GROUPS.map(({ group, items }) => (
                     <div key={group} className="mb-1">
@@ -365,13 +398,23 @@ export function OfficeCanvas() {
                             active ? 'bg-white/[0.05]' : 'hover:bg-white/[0.03]',
                           )}
                         >
-                          {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-panel-accent" />}
-                          <div className="w-[28px] h-[28px] rounded-lg flex items-center justify-center shrink-0 bg-white shadow-sm">
-                            <span className={cn('leading-none', iconColor)}>
+                          {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-amber-400" />}
+                          <div className={cn(
+                            'w-[26px] h-[26px] rounded-lg flex items-center justify-center shrink-0 border transition-colors',
+                            active
+                              ? 'bg-white/[0.10] border-white/[0.12]'
+                              : 'bg-white/[0.04] border-white/[0.06] group-hover:bg-white/[0.08]',
+                          )}>
+                            <span className={cn('leading-none transition-opacity', iconColor, !active && 'opacity-70 group-hover:opacity-100')}>
                               {icon}
                             </span>
                           </div>
-                          <span className={cn('text-[13px] font-semibold truncate text-amber-400 antialiased', active && 'tracking-tight')}>
+                          <span className={cn(
+                            'text-[13px] font-semibold truncate antialiased transition-colors',
+                            active
+                              ? 'text-amber-300 tracking-tight'
+                              : 'text-white/65 group-hover:text-white',
+                          )}>
                             {label}
                           </span>
                         </button>

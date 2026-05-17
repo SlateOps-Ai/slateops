@@ -142,7 +142,7 @@ export function CommandBar() {
 
   return (
     <>
-    <div className="absolute bottom-6 left-[184px] right-0 z-20 flex justify-center px-4"><div className="w-full max-w-2xl flex flex-col gap-2">
+    <div className="absolute bottom-6 left-[200px] right-0 z-20 flex justify-center px-4"><div className="w-full max-w-2xl flex flex-col gap-2">
 
       <SuggestionsBar onSelect={(cmd) => submit(cmd)} />
 

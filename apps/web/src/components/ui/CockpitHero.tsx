@@ -182,7 +182,7 @@ export function CockpitHero() {
   // dramatically more compact — situation line + command + 3 example pills
   // instead of a giant wordmark + tagline + decorative legend.
   return (
-    <div className="absolute left-[184px] right-0 top-0 z-20 flex justify-center pt-12 px-4 pointer-events-none">
+    <div className="absolute left-[200px] right-0 top-0 z-20 flex justify-center pt-12 px-4 pointer-events-none">
       <div className="w-full max-w-[640px] flex flex-col items-stretch gap-3 pointer-events-auto">
 
         {/* Greeting + situation */}
