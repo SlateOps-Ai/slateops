@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master, main]
+
+# Cancel earlier runs of the same PR when a new commit lands.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Same versions the repo's package.json pins (engines + packageManager).
+    env:
+      NODE_VERSION: 20
+      PNPM_VERSION: 9
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Prisma client must be generated before type-check — apps/api imports it.
+      - name: Generate Prisma client
+        run: pnpm --filter @agentcity/api exec prisma generate
+        env:
+          # Prisma needs *something* here for `generate` (no live DB needed).
+          DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
+          DIRECT_URL:   postgresql://placeholder:placeholder@localhost:5432/placeholder
+
+      - name: Type-check
+        run: pnpm -r exec tsc --noEmit
+
+      # `pnpm audit` only fails for advisories at or above audit-level.
+      # `--prod` skips devDependencies (most CVEs land in non-shipped tooling).
+      - name: Dependency audit (high+ severity, production only)
+        run: pnpm audit --prod --audit-level=high
+        continue-on-error: false
