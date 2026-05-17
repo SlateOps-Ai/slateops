@@ -103,8 +103,12 @@ function ConnectStep({ agentName, agentId, role, getToken, onSkip, onConnected }
 
   useEffect(() => {
     const connected = searchParams.get('connected')
-    if (connected) handleCallback(connected)
-  }, [searchParams, handleCallback])
+    if (!connected) return
+    // Allow-list against the integrations actually offered for this role —
+    // never POST the callback for an arbitrary attacker-supplied string.
+    if (!integrations.includes(connected)) return
+    handleCallback(connected)
+  }, [searchParams, handleCallback, integrations])
 
   async function connect(provider: string) {
     setConnecting(provider)

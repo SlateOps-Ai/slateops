@@ -2,9 +2,13 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../../lib/prisma.js'
 
+// Per-item cap of 8KB strikes a balance between useful reference docs and
+// token-amplification cost (every step injects up to 3 chunks × 1500 chars
+// into the system prompt). Bigger documents should be split into multiple
+// items by the caller.
 const createSchema = z.object({
   title:   z.string().min(1).max(200),
-  content: z.string().min(1).max(20000),
+  content: z.string().min(1).max(8000),
 })
 
 export default async function agentKnowledgeRoute(app: FastifyInstance) {
