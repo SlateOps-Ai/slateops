@@ -1,5 +1,31 @@
 import Link from 'next/link'
+import { SlateCaretLogo } from '@/components/branding/SlateCaretLogo'
 import { FaqAccordion } from './FaqAccordion'
+
+/** Brand lockup — the caret icon + "slate|ops" wordmark with a blinking
+ *  amber caret divider. Sizes are configurable so the same component
+ *  serves the bold marketing nav and the smaller footer. */
+function SlateOpsLockup({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
+  const iconSize  = size === 'lg' ? 40 : size === 'sm' ? 22 : 30
+  const wordClass = size === 'lg' ? 'text-[24px]' : size === 'sm' ? 'text-[16px]' : 'text-[20px]'
+  const caretW    = size === 'lg' ? 'w-[4px]'    : size === 'sm' ? 'w-[2px]'    : 'w-[3px]'
+  const caretMx   = size === 'lg' ? 'mx-[4px]'   : size === 'sm' ? 'mx-[2px]'   : 'mx-[3px]'
+  const gap       = size === 'lg' ? 'gap-4'      : size === 'sm' ? 'gap-2'      : 'gap-3'
+  return (
+    <span className={`flex items-center ${gap}`}>
+      <SlateCaretLogo size={iconSize} variant="amber" />
+      <span className={`${wordClass} font-bold text-white tracking-tight flex items-baseline`}>
+        <span>slate</span>
+        <span
+          aria-hidden
+          className={`inline-block ${caretW} ${caretMx} bg-amber-400 rounded-[1.5px] animate-pulse`}
+          style={{ animationDuration: '0.7s', height: '0.95em', transform: 'translateY(0.18em)' }}
+        />
+        <span>ops</span>
+      </span>
+    </span>
+  )
+}
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 // bg:   #0d1117  (dark navy)
@@ -16,7 +42,9 @@ export function LandingPage() {
       {/* ── NAV ──────────────────────────────────────────────────────────── */}
       <nav className="sticky top-0 z-50 border-b border-white/[0.06] bg-[#0d1117]/90 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <span className="text-white font-bold text-lg tracking-tight">SlateOps</span>
+          <Link href="/" aria-label="SlateOps home" className="hover:opacity-90 transition-opacity">
+            <SlateOpsLockup size="md" />
+          </Link>
           <div className="flex items-center gap-4">
             <Link href="/sign-in" className="text-[#8892B0] text-sm hover:text-white transition-colors">
               Sign in
@@ -451,8 +479,8 @@ export function LandingPage() {
       {/* ── SECTION 10: FOOTER ───────────────────────────────────────────── */}
       <footer className="border-t border-white/[0.06] py-12 px-6">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="text-center md:text-left">
-            <p className="text-white font-bold text-lg mb-1">SlateOps</p>
+          <div className="text-center md:text-left flex flex-col items-center md:items-start gap-1">
+            <SlateOpsLockup size="sm" />
             <p className="text-[#8892B0] text-xs">Human judgment. At machine speed.</p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-[#8892B0]">
