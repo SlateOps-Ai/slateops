@@ -3,28 +3,42 @@ import fp from 'fastify-plugin'
 import { clerkPlugin, getAuth, clerkClient } from '@clerk/fastify'
 import { prisma } from '../lib/prisma.js'
 
-async function fetchClerkProfile(clerkId: string): Promise<{ email: string; name: string }> {
-  try {
-    const u = await clerkClient.users.getUser(clerkId)
-    const primaryEmail = u.emailAddresses.find((e: any) => e.id === u.primaryEmailAddressId)?.emailAddress
-                       ?? u.emailAddresses[0]?.emailAddress
-    const name = [u.firstName, u.lastName].filter(Boolean).join(' ').trim()
-                 || u.username
-                 || 'User'
-    return {
-      email: primaryEmail ?? `${clerkId}@clerk`,
-      name,
-    }
-  } catch {
-    return { email: `${clerkId}@clerk`, name: 'User' }
-  }
-}
-
 declare module 'fastify' {
   interface FastifyRequest {
     userId:   string
     dbUserId: string
   }
+}
+
+/**
+ * Fire-and-forget Clerk profile backfill. Runs in the background; never
+ * blocks the request that triggered it. Idempotent — a successful update
+ * removes the `@clerk` suffix from email, after which this is a no-op.
+ *
+ * Replaces the previous in-path `await clerkClient.users.getUser(...)` that
+ * stalled every authenticated request whose DB row still had the placeholder
+ * email (i.e. every existing user, on every request).
+ */
+function scheduleProfileBackfill(dbUserId: string, clerkId: string): void {
+  setImmediate(async () => {
+    try {
+      const u = await clerkClient.users.getUser(clerkId)
+      const primaryEmail = u.emailAddresses.find((e: any) => e.id === u.primaryEmailAddressId)?.emailAddress
+                         ?? u.emailAddresses[0]?.emailAddress
+      const name = [u.firstName, u.lastName].filter(Boolean).join(' ').trim()
+                 || u.username
+                 || 'User'
+      if (!primaryEmail) return
+      await prisma.user.update({
+        where: { id: dbUserId },
+        data:  { email: primaryEmail, name },
+      })
+    } catch {
+      // Clerk unreachable / rate-limited / user gone — fall through. The
+      // next authenticated request will re-attempt this if the email is
+      // still the @clerk placeholder.
+    }
+  })
 }
 
 export default fp(async function authPlugin(app: FastifyInstance) {
@@ -51,39 +65,29 @@ export default fp(async function authPlugin(app: FastifyInstance) {
     }
     req.userId = userId
 
-    // Look up the canonical email + name from Clerk on first sight (or when
-    // we still have the fake `<clerkId>@clerk` placeholder from a previous
-    // build that didn't sync). Future requests skip the Clerk call because
-    // the local row is already populated; the Clerk webhook keeps it fresh.
-    const existing = await prisma.user.findUnique({
+    // Hot path: one upsert keyed on Clerk ID. New rows still get the
+    // `<clerkId>@clerk` placeholder; the backfill below replaces it
+    // asynchronously without holding up this request. The Clerk webhook
+    // is the canonical source of email updates.
+    const user = await prisma.user.upsert({
       where:  { clerkId: userId },
+      update: {},
+      create: { clerkId: userId, email: `${userId}@clerk`, name: 'User' },
       select: { id: true, email: true },
     })
-
-    let user: { id: string }
-    if (!existing) {
-      const profile = await fetchClerkProfile(userId)
-      user = await prisma.user.create({
-        data: { clerkId: userId, email: profile.email, name: profile.name },
-        select: { id: true },
-      })
-    } else if (existing.email.endsWith('@clerk')) {
-      const profile = await fetchClerkProfile(userId)
-      user = await prisma.user.update({
-        where:  { id: existing.id },
-        data:   { email: profile.email, name: profile.name },
-        select: { id: true },
-      })
-    } else {
-      user = existing
-    }
-
     req.dbUserId = user.id
 
+    // Office row is needed by downstream queries; cheap upsert.
     await prisma.office.upsert({
       where:  { userId: user.id },
       update: {},
       create: { userId: user.id },
     })
+
+    // Background email/name backfill when the row still has the placeholder.
+    // Non-blocking; logs nothing on failure to avoid log spam.
+    if (user.email.endsWith('@clerk')) {
+      scheduleProfileBackfill(user.id, userId)
+    }
   })
 })
