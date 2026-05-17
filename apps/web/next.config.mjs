@@ -12,26 +12,14 @@ const nextConfig = {
     ],
   },
   async headers() {
-    // Tune script-src and connect-src once Clerk + Socket.io + Stripe endpoints
-    // are confirmed. Start strict; loosen with explicit hosts as needed.
-    const csp = [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://*.clerk.accounts.dev https://clerk.com https://*.clerk.com https://js.stripe.com",
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https://pub-slateops.r2.dev https://api.dicebear.com https://img.clerk.com https://*.clerk.com",
-      "font-src 'self' data:",
-      "connect-src 'self' https: wss:",
-      "frame-src 'self' https://js.stripe.com https://*.clerk.com https://*.clerk.accounts.dev",
-      "frame-ancestors 'self'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "object-src 'none'",
-    ].join('; ')
-
+    // NOTE: CSP temporarily disabled — the strict policy from the security
+    // audit (HIGH-08) was blocking Clerk's sign-in widget from loading.
+    // Re-enable in report-only mode once we've enumerated every host Clerk
+    // pulls scripts/styles/fonts from for THIS instance, then promote to
+    // enforced mode after a week of clean reports.
     return [{
       source: '/(.*)',
       headers: [
-        { key: 'Content-Security-Policy', value: csp },
         { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
         { key: 'X-Content-Type-Options', value: 'nosniff' },
         { key: 'Referrer-Policy',         value: 'strict-origin-when-cross-origin' },
