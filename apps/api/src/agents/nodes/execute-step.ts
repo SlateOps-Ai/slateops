@@ -9,7 +9,7 @@ import type { McpTool } from '../../lib/mcp.js'
 import type { AgentGraphState } from '../graph.js'
 import { getExecutor } from '../executor-registry.js'
 import { appForToolName, findCatalogApp } from '@agentcity/types'
-import { STRICT_PURPOSE_CONTRACT } from '../../lib/strict-purpose.js'
+import { contractFor, type AgentStrictness } from '../../lib/strict-purpose.js'
 
 function scoreKnowledge(items: Array<{ title: string; content: string }>, instruction: string): Array<{ title: string; content: string }> {
   const words = instruction.toLowerCase().split(/\W+/).filter((w) => w.length > 3)
@@ -34,7 +34,10 @@ function buildSystemPrompt(
   memories: Array<{ key: string; value: string }> = [],
   knowledgeChunks: Array<{ title: string; content: string }> = [],
   scopeGuardNote = '',
+  strictness: AgentStrictness | null | undefined = 'BALANCED',
 ): string {
+  const contract = contractFor(strictness)
+  const contractBlock = contract ? `\n\n${contract}` : ''
   const brief    = contextBrief?.trim()
   const preamble = PATTERN_PREAMBLES[pattern] ?? PATTERN_PREAMBLES.AUTONOMOUS
 
@@ -56,9 +59,7 @@ Personality: ${personality || 'professional and efficient'}.
 Today's date: ${dateStr}.${brief ? `\n\nContext: ${brief}` : ''}${memBlock}${kbBlock}${scopeGuardNote}
 Execute the current task step using the available tools.
 When you have enough information, stop calling tools and return a clear, structured result.
-Never fabricate data — if a tool returns no results, say so honestly.
-
-${STRICT_PURPOSE_CONTRACT}`
+Never fabricate data — if a tool returns no results, say so honestly.${contractBlock}`
 }
 
 export async function executeStepNode(state: AgentGraphState): Promise<Partial<AgentGraphState>> {
@@ -136,6 +137,7 @@ export async function executeStepNode(state: AgentGraphState): Promise<Partial<A
     memories,
     relevantKnowledge,
     scopeGuardNote,
+    (agent as any).strictness ?? 'BALANCED',
   )
 
   // Agentic loop: keep calling LLM until it stops using tools

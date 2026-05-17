@@ -109,6 +109,12 @@ enum GrantMode {
   ASK_EACH
 }
 
+enum AgentStrictness {
+  STRICT
+  BALANCED
+  OPEN
+}
+
 enum GrantRequestStatus {
   PENDING
   GRANTED_ONCE
@@ -322,6 +328,7 @@ model Agent {
   avatarPresentation AvatarPresentation
   deskPosition       Json
   pattern            AgentPattern       @default(AUTONOMOUS)
+  strictness         AgentStrictness    @default(BALANCED)
   scopeConfig        Json?
   isPublic           Boolean            @default(false)
   status             AgentStatus        @default(IDLE)
