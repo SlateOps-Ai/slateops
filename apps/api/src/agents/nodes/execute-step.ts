@@ -1,4 +1,5 @@
 import type Anthropic from '@anthropic-ai/sdk'
+import Ajv from 'ajv'
 import { getAnthropicClient } from '../../lib/claude.js'
 import { emitEvent, emitLive } from '../../services/events.service.js'
 import { requiresApproval, ROLE_TOOLS } from '../tools/registry.js'
@@ -11,6 +12,11 @@ import { getExecutor } from '../executor-registry.js'
 import { appForToolName, findCatalogApp } from '@agentcity/types'
 import { STRICT_PURPOSE_CONTRACT } from '../../lib/strict-purpose.js'
 import { decryptMemoryValue } from '../../lib/crypto.js'
+
+// Shared Ajv instance for validating MCP tool inputs before forwarding to
+// the user-supplied MCP server. Strict mode off — MCP servers ship schemas
+// with vendor extensions Ajv doesn't recognise.
+const ajv = new Ajv({ strict: false, allErrors: true })
 
 function scoreKnowledge(items: Array<{ title: string; content: string }>, instruction: string): Array<{ title: string; content: string }> {
   const words = instruction.toLowerCase().split(/\W+/).filter((w) => w.length > 3)
@@ -327,6 +333,31 @@ export async function executeStepNode(state: AgentGraphState): Promise<Partial<A
           try {
             if (mcpTarget) {
               const originalName = toolUse.name.split('__').slice(1).join('__')
+              // Validate the LLM-produced input against the MCP server's declared
+              // schema. The model can be prompt-injected into producing arbitrary
+              // structures; without this, we'd forward whatever it dreamed up.
+              const toolDef = mcpToolDefs.find((d) => d.name === toolUse.name)
+              const schema  = toolDef?.input_schema as Record<string, unknown> | undefined
+              if (schema && typeof schema === 'object') {
+                try {
+                  const validate = ajv.compile(schema as any)
+                  if (!validate(toolUse.input)) {
+                    toolOutput = {
+                      error: `Tool "${toolUse.name}" was called with invalid arguments: ${ajv.errorsText(validate.errors)}. Adjust and retry, or skip this tool.`,
+                    }
+                    toolResultContent.push({
+                      type:        'tool_result',
+                      tool_use_id: toolUse.id,
+                      content:     JSON.stringify(toolOutput),
+                    })
+                    continue
+                  }
+                } catch {
+                  // Compile failure (bad schema from MCP server) — fall through
+                  // and let the call proceed; better than blocking on a malformed
+                  // schema that wasn't our user's fault.
+                }
+              }
               toolOutput = await callMcpTool(mcpTarget.url, originalName, toolUse.input, mcpTarget.authHeader)
             } else {
               toolOutput = await executor(toolUse.name, toolUse.input)

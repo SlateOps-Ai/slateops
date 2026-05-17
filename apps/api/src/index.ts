@@ -512,14 +512,14 @@ async function start() {
         if (adminEmail) {
           const { sendAnomalyAlert } = await import('./services/email.service.js')
           await sendAnomalyAlert({
-            toEmail:   adminEmail,
-            userEmail: user.email,
-            userName:  user.name ?? user.email,
-            plan:      user.plan,
-            todayUsd:  a.todayUsd,
-            avgUsd:    a.avgUsd,
+            toEmail:  adminEmail,
+            userId:   a.userId,
+            userName: user.name ?? 'user',
+            plan:     user.plan,
+            todayUsd: a.todayUsd,
+            avgUsd:   a.avgUsd,
             ratio,
-            adminUrl:  `${webUrl}/admin`,
+            adminUrl: `${webUrl}/admin`,
           }).catch((err: Error) => app.log.error(`[spend-anomaly] email send failed: ${err.message}`))
         }
       }

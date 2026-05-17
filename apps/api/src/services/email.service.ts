@@ -39,13 +39,13 @@ function renderTaskComplete(d: TaskCompleteData): string {
           <td style="padding:28px 32px 20px;border-bottom:1px solid #1e2540">
             <table cellpadding="0" cellspacing="0"><tr>
               <td style="vertical-align:middle;padding-right:14px">
-                <img src="${d.agentAvatarUrl}" width="40" height="40"
-                     style="border-radius:50%;display:block" alt="${d.agentName}" />
+                <img src="${escapeHtml(d.agentAvatarUrl)}" width="40" height="40"
+                     style="border-radius:50%;display:block" alt="${escapeHtml(d.agentName)}" />
               </td>
               <td style="vertical-align:middle">
                 <p style="margin:0 0 2px;color:#4dffa0;font-size:10px;font-weight:600;
                           letter-spacing:0.1em;text-transform:uppercase">Task complete</p>
-                <p style="margin:0;color:#ffffff;font-size:17px;font-weight:700">${d.taskTitle}</p>
+                <p style="margin:0;color:#ffffff;font-size:17px;font-weight:700">${escapeHtml(d.taskTitle)}</p>
               </td>
             </tr></table>
           </td>
@@ -53,7 +53,7 @@ function renderTaskComplete(d: TaskCompleteData): string {
         <tr>
           <td style="padding:20px 32px">
             <p style="margin:0 0 8px;color:#8892b0;font-size:11px;font-weight:600;
-                      text-transform:uppercase;letter-spacing:0.08em">Result from ${d.agentName}</p>
+                      text-transform:uppercase;letter-spacing:0.08em">Result from ${escapeHtml(d.agentName)}</p>
             <div style="background:#0f1426;border:1px solid #1e2540;border-radius:10px;
                         padding:16px;color:#c8cfe0;font-size:13px;line-height:1.6;
                         white-space:pre-wrap;word-break:break-word">${escapeHtml(d.resultSummary)}</div>
@@ -270,17 +270,17 @@ function renderBrief(d: BriefData): string {
   const agentRows = d.agents.map((a) => `
     <tr>
       <td style="padding:12px 0;border-bottom:1px solid #1e2540;vertical-align:top;width:44px">
-        <img src="${a.avatarUrl}" width="36" height="36"
-             style="border-radius:50%;object-fit:cover;display:block" alt="${a.name}" />
+        <img src="${escapeHtml(a.avatarUrl)}" width="36" height="36"
+             style="border-radius:50%;object-fit:cover;display:block" alt="${escapeHtml(a.name)}" />
       </td>
       <td style="padding:12px 0 12px 12px;border-bottom:1px solid #1e2540;vertical-align:top">
-        <p style="margin:0 0 2px;color:#ffffff;font-size:13px;font-weight:600">${a.name}</p>
+        <p style="margin:0 0 2px;color:#ffffff;font-size:13px;font-weight:600">${escapeHtml(a.name)}</p>
         <p style="margin:0 0 6px;color:#8892b0;font-size:11px">
           ${a.tasksCompleted} task${a.tasksCompleted !== 1 ? 's' : ''} completed
-          ${a.topCommand ? `· most used: <em>${a.topCommand}</em>` : ''}
+          ${a.topCommand ? `· most used: <em>${escapeHtml(a.topCommand)}</em>` : ''}
         </p>
         <p style="margin:0;color:#c8cfe0;font-size:12px;line-height:1.5">
-          💡 ${a.recommendation}
+          💡 ${escapeHtml(a.recommendation)}
         </p>
       </td>
     </tr>
@@ -308,10 +308,10 @@ function renderBrief(d: BriefData): string {
             <p style="margin:0 0 4px;color:#4d7fff;font-size:11px;font-weight:600;
                       letter-spacing:0.1em;text-transform:uppercase">Weekly brief</p>
             <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;line-height:1.2">
-              Your office, week of ${d.weekOf}
+              Your office, week of ${escapeHtml(d.weekOf)}
             </h1>
             <p style="margin:8px 0 0;color:#8892b0;font-size:13px">
-              Hey ${d.userName.split(' ')[0]} — here's what your team got done.
+              Hey ${escapeHtml(d.userName.split(' ')[0])} — here's what your team got done.
             </p>
           </td>
         </tr>
@@ -372,14 +372,14 @@ function renderBrief(d: BriefData): string {
 // ── Anomaly alert ─────────────────────────────────────────────────────────────
 
 export interface AnomalyAlertData {
-  toEmail:   string
-  userEmail: string
-  userName:  string
-  plan:      string
-  todayUsd:  number
-  avgUsd:    number
-  ratio:     number
-  adminUrl:  string
+  toEmail:    string
+  userId:     string         // opaque ID — userEmail no longer leaked into alerts
+  userName:   string
+  plan:       string
+  todayUsd:   number
+  avgUsd:     number
+  ratio:      number
+  adminUrl:   string
 }
 
 export async function sendAnomalyAlert(data: AnomalyAlertData): Promise<void> {
@@ -387,14 +387,14 @@ export async function sendAnomalyAlert(data: AnomalyAlertData): Promise<void> {
   await resend.emails.send({
     from:    'SlateOps Cost Monitor <alerts@slateops.tech>',
     to:      data.toEmail,
-    subject: `[SlateOps] Spend anomaly: ${data.userEmail} at ${data.ratio.toFixed(1)}× today`,
+    subject: `[SlateOps] Spend anomaly: user ${data.userId} at ${data.ratio.toFixed(1)}× today`,
     html: `<!DOCTYPE html>
 <html><body style="margin:0;padding:0;background:#0d111f;font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif">
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px">
 <table width="520" cellpadding="0" cellspacing="0" style="background:#12172b;border-radius:16px;border:1px solid #4a1f1f;overflow:hidden">
 <tr><td style="padding:24px 28px;border-bottom:1px solid #4a1f1f">
   <p style="margin:0 0 4px;color:#ff6b4d;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase">⚠️ Cost anomaly</p>
-  <p style="margin:0;color:#ffffff;font-size:18px;font-weight:700">${data.userName} <span style="color:#8892b0;font-weight:400">· ${data.userEmail}</span></p>
+  <p style="margin:0;color:#ffffff;font-size:18px;font-weight:700">${escapeHtml(data.userName)} <span style="color:#8892b0;font-weight:400">· user ${escapeHtml(data.userId)}</span></p>
 </td></tr>
 <tr><td style="padding:24px 28px">
   <table cellpadding="0" cellspacing="0" width="100%"><tr>
@@ -412,9 +412,9 @@ export async function sendAnomalyAlert(data: AnomalyAlertData): Promise<void> {
     </td>
   </tr></table>
   <p style="margin:24px 0 0;color:#8892b0;font-size:13px;line-height:1.6">
-    Spend today is ≥5× this user's 7-day average. Possible causes: legitimate burst, runaway loop in their integration, or compromised credentials.
+    Spend today crossed the anomaly threshold (3× 7-day average OR ≥$2 absolute). Possible causes: legitimate burst, runaway loop in their integration, or compromised credentials.
   </p>
-  <p style="margin:16px 0 0;color:#8892b0;font-size:12px">Plan: <span style="color:#ffffff">${data.plan}</span></p>
+  <p style="margin:16px 0 0;color:#8892b0;font-size:12px">Plan: <span style="color:#ffffff">${escapeHtml(data.plan)}</span></p>
   <a href="${data.adminUrl}" style="display:inline-block;margin-top:20px;padding:10px 16px;background:#4d7fff;color:#ffffff;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600">
     Open admin dashboard →
   </a>
