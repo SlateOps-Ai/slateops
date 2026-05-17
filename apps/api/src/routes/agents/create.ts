@@ -175,4 +175,104 @@ export default async function agentsRoute(app: FastifyInstance) {
     })
     return reply.send({ agents })
   })
+
+  // ── DELETE /api/agents/:id ─────────────────────────────────────────────
+  // Soft-delete: flips isActive to false and drains any work the agent had
+  // scheduled. Preserves Task history (immutable audit trail; non-cascade
+  // relation in the schema by design).
+  //
+  // Refuses if the agent is a published marketplace product — those have
+  // external buyers/installs that we don't want to break silently. The
+  // user must un-publish first.
+  //
+  // Soft-delete chosen over hard-delete because:
+  //   * Task / TaskEvent / ApprovalRequest don't cascade — hard-delete
+  //     would require either dropping history (bad) or migrating tasks to
+  //     a tombstone agent (extra complexity).
+  //   * isActive already filters every list query, so a soft-deleted agent
+  //     instantly disappears from the cockpit / dock / marketplace cap.
+  //   * Reversible — if the user changes their mind we can resurrect.
+  app.delete('/api/agents/:id', async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const userId = req.dbUserId
+
+    const agent = await prisma.agent.findFirst({
+      where: { id, userId, isActive: true },
+      select: { id: true, name: true },
+    })
+    if (!agent) return reply.code(404).send({ error: 'Agent not found' })
+
+    // Block delete if this agent is a published marketplace product —
+    // external buyers may have installed it and we'd silently break them.
+    const publishedProduct = await prisma.agentProduct.findFirst({
+      where:  { agentId: id, isPublished: true },
+      select: { id: true, name: true },
+    })
+    if (publishedProduct) {
+      return reply.code(409).send({
+        error: `${agent.name} is a published marketplace product ("${publishedProduct.name}"). Unpublish it from the marketplace before deleting.`,
+        code:  'AGENT_IS_PUBLISHED_PRODUCT',
+      })
+    }
+
+    // Wrap every state mutation in a single transaction so a partial
+    // failure can't leave the agent half-deleted (isActive=false but
+    // tasks still IN_PROGRESS, etc.).
+    await prisma.$transaction(async (tx) => {
+      // Cancel in-flight tasks for this agent. PENDING/IN_PROGRESS/NEEDS_APPROVAL
+      // all become CANCELLED so the cron loops and approval queue ignore them.
+      const liveTasks = await tx.task.findMany({
+        where:  { agentId: id, status: { in: ['PENDING', 'IN_PROGRESS', 'NEEDS_APPROVAL'] } },
+        select: { id: true },
+      })
+      const liveTaskIds = liveTasks.map((t) => t.id)
+
+      if (liveTaskIds.length > 0) {
+        await tx.task.updateMany({
+          where: { id: { in: liveTaskIds } },
+          data:  { status: 'CANCELLED', completedAt: new Date() },
+        })
+        // Expire any pending approval requests on those tasks.
+        await tx.approvalRequest.updateMany({
+          where: { taskId: { in: liveTaskIds }, status: 'PENDING' },
+          data:  { status: 'EXPIRED', respondedAt: new Date() },
+        })
+      }
+
+      // Cancel scheduled social posts that were going to be sent by this
+      // agent. SocialPostStatus has a CANCELLED state for exactly this.
+      await tx.scheduledPost.updateMany({
+        where: { agentId: id, status: { in: ['DRAFT', 'SCHEDULED'] } },
+        data:  { status: 'CANCELLED', failReason: 'Agent deleted by user' },
+      })
+
+      // Disable trigger rules pointing at this agent — inbound webhooks
+      // for these rules will no longer fire tasks.
+      await tx.triggerRule.updateMany({
+        where: { agentId: id, isActive: true },
+        data:  { isActive: false },
+      })
+
+      // Deactivate scheduled cron runs whose saved command targets this
+      // agent. The hourly scheduler reads isActive: true.
+      const savedCmds = await tx.savedCommand.findMany({
+        where:  { agentId: id },
+        select: { id: true },
+      })
+      if (savedCmds.length > 0) {
+        await tx.scheduledRun.updateMany({
+          where: { savedCommandId: { in: savedCmds.map((s) => s.id) }, isActive: true },
+          data:  { isActive: false },
+        })
+      }
+
+      // Final flip — agent disappears from every list query.
+      await tx.agent.update({
+        where: { id },
+        data:  { isActive: false, status: 'OFFLINE' },
+      })
+    })
+
+    return reply.send({ ok: true, deletedAgentId: id })
+  })
 }

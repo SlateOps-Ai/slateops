@@ -57,6 +57,7 @@ interface AgentsState {
 
   setAgents:               (agents: Agent[]) => void
   addAgent:                (agent: Agent) => void
+  removeAgent:             (agentId: string) => void
   updateStatus:            (agentId: string, status: AgentStatus) => void
   setDirectorActor:        (agentId: string, actor: ActorRef<any, any>) => void
   setActiveTask:           (agentId: string, taskId: string | null) => void
@@ -132,6 +133,17 @@ export const useAgentsStore = create<AgentsState>((set) => ({
 
   addAgent: (agent) =>
     set((s) => ({ agents: [...s.agents, agent] })),
+
+  removeAgent: (agentId) =>
+    set((s) => ({
+      agents:             s.agents.filter((a) => a.id !== agentId),
+      // If the deleted agent was the active chat target, drop back to CEO mode.
+      activeChatAgentId:  s.activeChatAgentId === agentId ? null : s.activeChatAgentId,
+      // Clear related per-agent state so we don't leak references.
+      activeTaskIds:      Object.fromEntries(Object.entries(s.activeTaskIds).filter(([k]) => k !== agentId)),
+      agentNotifications: Object.fromEntries(Object.entries(s.agentNotifications).filter(([k]) => k !== agentId)),
+      agentPositions:     Object.fromEntries(Object.entries(s.agentPositions).filter(([k]) => k !== agentId)),
+    })),
 
   updateStatus: (agentId, status) =>
     set((s) => ({

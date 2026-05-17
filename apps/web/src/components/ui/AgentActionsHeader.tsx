@@ -3,13 +3,14 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence } from 'framer-motion'
-import { Brain, BookOpen, Share2, History, TrendingUp } from 'lucide-react'
+import { Brain, BookOpen, Share2, History, TrendingUp, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MemoryPanel } from '@/components/ui/MemoryPanel'
 import { KnowledgePanel } from '@/components/ui/KnowledgePanel'
 import { SessionDrillDownPanel } from '@/components/ui/SessionDrillDownPanel'
 import { AgentHealthPanel } from '@/components/ui/AgentHealthPanel'
 import { ShareWidget } from '@/components/ui/ShareWidget'
+import { DeleteAgentDialog } from '@/components/ui/DeleteAgentDialog'
 
 type ActionType = 'memory' | 'knowledge' | 'share' | 'sessions' | 'health'
 
@@ -30,6 +31,7 @@ interface Props {
 export function AgentActionsHeader({ agentId, agentName, isPublic }: Props) {
   const [active, setActive]   = useState<ActionType | null>(null)
   const [mounted, setMounted] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -79,9 +81,23 @@ export function AgentActionsHeader({ agentId, agentName, isPublic }: Props) {
             {icon}
           </button>
         ))}
+        {/* Destructive action lives in its own segment, separated by a thin
+            divider, so it never sits adjacent to the routine actions. */}
+        <span className="w-px self-stretch bg-white/[0.08] mx-0.5" aria-hidden />
+        <button
+          onClick={() => setDeleteOpen(true)}
+          title="Delete agent"
+          className="p-1.5 rounded-md text-panel-muted hover:text-lamp-blocked hover:bg-lamp-blocked/10 transition-colors"
+        >
+          <Trash2 size={12} />
+        </button>
       </div>
       {/* Portal to document.body so the panel escapes the chat panel's transform context */}
       {mounted ? createPortal(panel, document.body) : null}
+      {mounted && deleteOpen ? createPortal(
+        <DeleteAgentDialog agentId={agentId} agentName={agentName} onClose={() => setDeleteOpen(false)} />,
+        document.body,
+      ) : null}
     </>
   )
 }

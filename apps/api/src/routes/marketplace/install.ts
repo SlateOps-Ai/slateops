@@ -152,7 +152,10 @@ export default async function marketplaceInstallRoute(app: FastifyInstance) {
     if (!template) return reply.code(404).send({ error: `Template "${templateId}" not found` })
 
     const [agentCount, office] = await Promise.all([
-      prisma.agent.count({ where: { userId } }),
+      // Only count ACTIVE agents toward the 6-agent cap. Soft-deleted
+      // agents (isActive=false) still own DB rows but shouldn't block
+      // hires — that's the whole point of having a delete UX.
+      prisma.agent.count({ where: { userId, isActive: true } }),
       prisma.office.findUnique({ where: { userId } }),
     ])
     if (agentCount >= 6) return reply.code(400).send({ error: 'Maximum 6 agents reached. Delete one to add more.' })
