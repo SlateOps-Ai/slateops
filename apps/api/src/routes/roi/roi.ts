@@ -15,7 +15,7 @@ export default async function roiRoute(app: FastifyInstance) {
         select: { id: true, complexity: true, createdAt: true, completedAt: true },
       }),
       prisma.workflowRun.findMany({
-        where:  { userId, status: 'COMPLETE', createdAt: { gte: since } },
+        where:  { userId, status: 'COMPLETE', startedAt: { gte: since } },
         select: { id: true },
       }),
       prisma.user.findUnique({ where: { id: userId }, select: { settings: true } }),

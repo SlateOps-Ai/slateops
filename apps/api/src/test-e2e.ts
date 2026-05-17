@@ -17,12 +17,12 @@ async function check(name: string, fn: () => Promise<void>) {
   catch (err: any) { fail(name, err?.message ?? String(err)) }
 }
 
-async function GET(path: string) {
+async function GET(path: string): Promise<{ status: number; body: any }> {
   const res = await fetch(`${API}${path}`)
   return { status: res.status, body: await res.json().catch(() => ({})) }
 }
 
-async function POST(path: string, payload?: unknown) {
+async function POST(path: string, payload?: unknown): Promise<{ status: number; body: any }> {
   const res = await fetch(`${API}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

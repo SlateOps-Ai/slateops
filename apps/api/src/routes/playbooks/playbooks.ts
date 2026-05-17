@@ -79,11 +79,13 @@ export default async function playbooksRoute(app: FastifyInstance) {
     if (!agents.length) return reply.code(400).send({ error: 'No active agents' })
 
     // Fire each step async without blocking — each step routes to the best agent
+    const { makeExecutor } = await import('../../lib/composio.js')
+    const executeTool      = makeExecutor(userId)
     const taskIds: string[] = []
     for (const step of pb.steps) {
       try {
-        const routing = await routeCommand({ rawCommand: step.command, agents, userId })
-        const agent   = agents.find((a) => a.id === routing.agentId) ?? agents[0]
+        const routing = await routeCommand(step.command, agents)
+        const agent   = agents.find((a) => a.id === routing.targetAgentId) ?? agents[0]
         const task    = await prisma.task.create({
           data: {
             userId,
@@ -94,7 +96,14 @@ export default async function playbooksRoute(app: FastifyInstance) {
           },
         })
         taskIds.push(task.id)
-        startAgentTask(task.id, agent.id, userId, step.command).catch(() => {})
+        startAgentTask({
+          taskId:     task.id,
+          agentId:    agent.id,
+          agent,
+          rawCommand: step.command,
+          taskTitle:  step.command.slice(0, 120),
+          executeTool,
+        }).catch(() => {})
       } catch { /* continue with remaining steps */ }
     }
 

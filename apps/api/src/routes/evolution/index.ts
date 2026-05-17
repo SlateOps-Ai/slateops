@@ -72,10 +72,11 @@ export default fp(async (app) => {
 
     const newXp = evo.xp + xp
     const newLevel = getLevel(newXp)
-    const leveledUp = newLevel > evo.level
-    const newSkills = leveledUp
-      ? [...(evo.skills as string[]), ...(SKILL_UNLOCKS[newLevel] ?? [])]
-      : evo.skills
+    const leveledUp     = newLevel > evo.level
+    const existingSkills = Array.isArray(evo.skills) ? (evo.skills as string[]) : []
+    const newSkills: string[] = leveledUp
+      ? [...existingSkills, ...(SKILL_UNLOCKS[newLevel] ?? [])]
+      : existingSkills
 
     const updated = await prisma.agentEvolution.update({
       where: { agentId },
