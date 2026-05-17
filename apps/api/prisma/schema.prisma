@@ -882,6 +882,30 @@ model BrainNode {
   @@index([category])
 }
 
+enum BrainDocumentSource {
+  UPLOAD
+  URL
+}
+
+model BrainDocument {
+  id               String              @id @default(uuid())
+  userId           String
+  name             String              // user-friendly label
+  source           BrainDocumentSource
+  sourceUrl        String?             @db.Text  // populated for URL ingest
+  originalFilename String?             // populated for UPLOAD
+  mimeType         String
+  sizeBytes        Int                 @default(0)
+  extractedText    String              @db.Text  // plain-text extracted body
+  summary          String?             @db.Text  // optional auto-generated summary
+  accessCount      Int                 @default(0)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([userId])
+  @@index([userId, createdAt])
+}
+
 model BusinessObjective {
   id           String   @id @default(uuid())
   userId       String

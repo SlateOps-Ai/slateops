@@ -6,6 +6,7 @@ import { X, Brain, Search, Sparkles, Trash2, Plus, Loader2, MessageSquare } from
 import { cn } from '@/lib/utils'
 import { useAuthFetch } from '@/hooks/useAuthFetch'
 import { useDraggable } from '@/hooks/useDraggable'
+import { CompanyDocumentsSection } from '@/components/ui/CompanyDocumentsSection'
 
 interface BrainNode {
   id: string
@@ -265,7 +266,13 @@ export function CompanyBrainPanel({ onClose }: Props) {
         </div>
 
         {/* Nodes grid */}
-        <div className="flex-1 overflow-y-auto scrollbar-none p-4">
+        <div className="flex-1 overflow-y-auto scrollbar-none">
+          {/* Uploaded company documents — sits inside the scroll area so it
+              moves with the knowledge node list rather than competing for
+              vertical space. */}
+          <CompanyDocumentsSection />
+
+          <div className="p-4">
           {loading && (
             <div className="grid grid-cols-2 gap-2">
               {[1, 2, 3, 4, 5, 6].map((i) => <div key={i} className="h-24 rounded-xl bg-white/[0.04] animate-pulse" />)}
@@ -326,6 +333,7 @@ export function CompanyBrainPanel({ onClose }: Props) {
               })}
             </div>
           )}
+          </div>
         </div>
       </motion.div>
     </>
