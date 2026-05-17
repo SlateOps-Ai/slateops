@@ -142,9 +142,17 @@ export async function callAnthropic(
   }
 }
 
-// ── Daily anomaly check (called by the cron) ──────────────────────────────────
+// ── Anomaly detection ────────────────────────────────────────────────────────
+//
+// Two conditions trip an anomaly — whichever fires first:
+//   1. today_spend / 7day_avg ≥ 3
+//   2. today_spend ≥ $2 (absolute floor — catches new users with zero baseline)
+//
+// Designed to be called hourly. With the rolling daily window, an attacker
+// burning credits at >$2/hour will trigger within one cron tick.
 
-const DAILY_USER_SPEND_RATIO_THRESHOLD = 5  // alert if today is 5x the 7-day avg
+const DAILY_USER_SPEND_RATIO_THRESHOLD = 3
+const DAILY_USER_SPEND_ABSOLUTE_FLOOR  = 2   // USD
 
 export async function checkSpendAnomalies(): Promise<Array<{ userId: string; todayUsd: number; avgUsd: number }>> {
   const now      = new Date()
@@ -171,9 +179,33 @@ export async function checkSpendAnomalies(): Promise<Array<{ userId: string; tod
   for (const r of todayRows) {
     const today = r._sum.estimatedCostUsd ?? 0
     const avg   = weekAvgByUser.get(r.userId) ?? 0
-    if (today > 0.5 && avg > 0 && today / avg >= DAILY_USER_SPEND_RATIO_THRESHOLD) {
+    const ratioTrip = avg > 0 && today / avg >= DAILY_USER_SPEND_RATIO_THRESHOLD
+    const floorTrip = today >= DAILY_USER_SPEND_ABSOLUTE_FLOOR
+    if (today > 0.1 && (ratioTrip || floorTrip)) {
       anomalies.push({ userId: r.userId, todayUsd: today, avgUsd: avg })
     }
   }
   return anomalies
+}
+
+// ── Per-agent public-chat cost guard ─────────────────────────────────────────
+//
+// Sum the cost of all LLM calls billed to a specific agent through the public
+// widget endpoint within the last `windowMs`. Used to refuse anonymous calls
+// once the agent's owner has spent more than `PUBLIC_AGENT_DAILY_USD_CAP` via
+// the public widget in 24h. Prevents one anonymous attacker from draining an
+// account.
+
+export const PUBLIC_AGENT_DAILY_USD_CAP = 1   // USD per agent per rolling 24h
+
+export async function publicAgentSpendSince(agentId: string, sinceMs: number): Promise<number> {
+  const row = await prisma.llmCallLog.aggregate({
+    where: {
+      agentId,
+      endpoint:  '/api/public/agents/:id/chat',
+      createdAt: { gte: new Date(Date.now() - sinceMs) },
+    },
+    _sum: { estimatedCostUsd: true },
+  })
+  return row._sum.estimatedCostUsd ?? 0
 }

@@ -1,3 +1,5 @@
+import { assertPublicUrl } from './safe-fetch.js'
+
 export interface McpTool {
   name:        string
   description: string
@@ -20,6 +22,7 @@ function headers(authHeader?: string | null): Record<string, string> {
 }
 
 export async function fetchMcpTools(url: string, authHeader?: string | null): Promise<McpTool[]> {
+  await assertPublicUrl(url)
   const res = await fetch(`${url.replace(/\/$/, '')}/tools`, {
     headers: headers(authHeader),
     signal:  AbortSignal.timeout(8000),
@@ -40,6 +43,7 @@ export async function callMcpTool(
   input:      unknown,
   authHeader?: string | null,
 ): Promise<unknown> {
+  await assertPublicUrl(url)
   const res = await fetch(`${url.replace(/\/$/, '')}/call`, {
     method:  'POST',
     headers: headers(authHeader),

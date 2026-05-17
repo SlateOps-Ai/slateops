@@ -1,4 +1,5 @@
 import Fastify from 'fastify'
+import crypto from 'node:crypto'
 import cors from '@fastify/cors'
 import cookie from '@fastify/cookie'
 import rateLimit from '@fastify/rate-limit'
@@ -6,7 +7,25 @@ import fp from 'fastify-plugin'
 import { ZodError } from 'zod'
 
 const app = Fastify({
+  // Railway terminates TLS in front of the API; trustProxy lets req.ip read
+  // the real client address from X-Forwarded-For (otherwise every request
+  // looks like the proxy IP and rate limits cap the whole endpoint).
+  trustProxy: true,
   logger: {
+    redact: {
+      paths: [
+        'req.headers.authorization',
+        'req.headers.cookie',
+        'req.body.message',
+        'req.body.history[*].content',
+        'req.body.byokKey',
+        '*.byokKey',
+        '*.apiKey',
+        '*.password',
+        '*.api_key',
+      ],
+      remove: true,
+    },
     transport: {
       target: 'pino-pretty',
       options: { colorize: true, ignore: 'pid,hostname' },
@@ -37,16 +56,28 @@ function computeNext(expr: string): Date {
   return next
 }
 
-app.setErrorHandler((err, _req, reply) => {
+app.setErrorHandler((err, req, reply) => {
   if (err instanceof ZodError) {
     return reply.code(422).send({ error: 'Validation failed', issues: err.errors })
   }
-  reply.code(err.statusCode ?? 500).send({ error: err.message ?? 'Internal server error' })
+  const status = err.statusCode ?? 500
+  // Pass through 4xx messages (those are intentional, user-facing errors).
+  // Mask 5xx to a generic message + correlation id; full details go to logs.
+  if (status >= 400 && status < 500) {
+    return reply.code(status).send({ error: err.message ?? 'Bad request' })
+  }
+  const correlationId = crypto.randomUUID()
+  req.log.error({ err, correlationId }, 'Unhandled server error')
+  reply.code(status).send({ error: 'Internal server error', correlationId })
 })
 
 async function start() {
   if (!process.env.WEB_URL) {
     console.error('[FATAL] WEB_URL environment variable is not set. Approval email links will point to localhost and break in production. Set WEB_URL and restart.')
+    process.exit(1)
+  }
+  if (!process.env.ENCRYPTION_KEY || process.env.ENCRYPTION_KEY.length < 32) {
+    console.error('[FATAL] ENCRYPTION_KEY must be set and at least 32 characters. Generate with: openssl rand -hex 32')
     process.exit(1)
   }
 
@@ -77,6 +108,24 @@ async function start() {
   // ── Core plugins ────────────────────────────────────────────────
   const allowedOrigins = (process.env.WEB_URL ?? 'http://localhost:3000')
     .split(',').map((s) => s.trim()).filter(Boolean)
+    .filter((origin) => {
+      try {
+        const u = new URL(origin)
+        if (!['http:', 'https:'].includes(u.protocol)) return false
+        if (process.env.NODE_ENV === 'production' && u.protocol === 'http:' && u.hostname !== 'localhost') {
+          console.warn(`[CORS] Refusing non-HTTPS origin in production: ${origin}`)
+          return false
+        }
+        return true
+      } catch {
+        console.warn(`[CORS] Invalid origin URL skipped: ${origin}`)
+        return false
+      }
+    })
+  if (allowedOrigins.length === 0) {
+    console.error('[FATAL] WEB_URL parsed into zero valid origins.')
+    process.exit(1)
+  }
 
   await app.register(cors, {
     origin:      allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
@@ -84,7 +133,7 @@ async function start() {
   })
 
   await app.register(cookie, {
-    secret: process.env.ENCRYPTION_KEY ?? 'fallback-secret-change-me',
+    secret: process.env.ENCRYPTION_KEY!,
   })
 
   // ── Rate limiting (must be before routes so it sees authenticated user id) ──

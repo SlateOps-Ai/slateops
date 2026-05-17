@@ -4,6 +4,7 @@ import { prisma } from '../../lib/prisma.js'
 import { getAnthropicClient } from '../../lib/claude.js'
 import { PATTERN_PREAMBLES } from '../../lib/domain-guard.js'
 import { STRICT_PURPOSE_CONTRACT } from '../../lib/strict-purpose.js'
+import { publicAgentSpendSince, PUBLIC_AGENT_DAILY_USD_CAP } from '../../lib/llm-usage.js'
 
 const bodySchema = z.object({
   agentId: z.string().uuid(),
@@ -14,14 +15,15 @@ const bodySchema = z.object({
   })).max(20).default([]),
 })
 
-// Lightweight in-memory rate limiter: max 30 messages per IP per hour
-const ipCounts = new Map<string, { count: number; resetAt: number }>()
-
-function checkRateLimit(ip: string): boolean {
+// Per-agent in-process burst limiter — 30 req/min/agent. This is on top of the
+// 24h cost cap below; the cost cap is the source of truth for abuse, this just
+// keeps a single attacker from torching $1 in a single second.
+const agentBuckets = new Map<string, { count: number; resetAt: number }>()
+function checkAgentBurst(agentId: string): boolean {
   const now  = Date.now()
-  const slot = ipCounts.get(ip)
+  const slot = agentBuckets.get(agentId)
   if (!slot || now > slot.resetAt) {
-    ipCounts.set(ip, { count: 1, resetAt: now + 60 * 60 * 1000 })
+    agentBuckets.set(agentId, { count: 1, resetAt: now + 60 * 1000 })
     return true
   }
   if (slot.count >= 30) return false
@@ -34,33 +36,38 @@ export default async function publicChatRoute(app: FastifyInstance) {
   app.post('/api/public-chat', {
     config: { skipAuth: true } as any,
   }, async (req, reply) => {
-    const ip = req.ip ?? 'unknown'
-    if (!checkRateLimit(ip)) {
-      return reply.code(429).send({ error: 'Rate limit exceeded. Try again later.' })
+    const body = bodySchema.parse(req.body)
+
+    if (!checkAgentBurst(body.agentId)) {
+      return reply.code(429).send({ error: 'Rate limit exceeded. Try again in a minute.' })
     }
 
-    const body  = bodySchema.parse(req.body)
     const agent = await prisma.agent.findFirst({
       where:   { id: body.agentId, isPublic: true, isActive: true },
-      include: {
-        memories:  { orderBy: { updatedAt: 'desc' }, take: 5, select: { key: true, value: true } },
-        knowledge: { orderBy: { createdAt: 'desc' }, take: 5, select: { title: true, content: true } },
-      },
+      // Memories + knowledge are deliberately NOT loaded for public chat — they
+      // can contain owner-private info and prompt-injected visitors could
+      // exfiltrate them. Only the owner-curated contextBrief is exposed.
     })
     if (!agent) return reply.code(404).send({ error: 'Agent not found or not public' })
 
-    const preamble = PATTERN_PREAMBLES[(agent as any).pattern ?? 'AUTONOMOUS']
-    const memBlock = agent.memories.length
-      ? `\n\nKnown context:\n${agent.memories.map((m) => `- ${m.key}: ${m.value}`).join('\n')}`
-      : ''
-    const kbBlock = (agent as any).knowledge?.length
-      ? `\n\nKnowledge:\n${(agent as any).knowledge.map((k: any) => `[${k.title}]\n${k.content.slice(0, 800)}`).join('\n\n')}`
-      : ''
+    // Per-agent daily cost cap — if this agent has already burned through its
+    // public-chat budget for the rolling 24h, refuse anonymous calls until it
+    // rolls off. The owner's credit pool is the ultimate stop, but this is the
+    // throttle that keeps a single agent from being weaponised.
+    const spent24h = await publicAgentSpendSince(agent.id, 24 * 60 * 60 * 1000)
+    if (spent24h >= PUBLIC_AGENT_DAILY_USD_CAP) {
+      return reply.code(429).send({ error: 'This agent is temporarily unavailable. Please try again later.' })
+    }
 
+    const preamble = PATTERN_PREAMBLES[(agent as any).pattern ?? 'AUTONOMOUS']
+
+    // System prompt for public chat is intentionally minimal: role + personality
+    // + owner-curated contextBrief. No memories, no knowledge corpora — those
+    // stay private-chat-only to avoid exfiltration via prompt injection.
     const system = `${preamble}
 
 You are ${agent.name}, a ${agent.role.toLowerCase().replace(/_/g, ' ')}.
-Personality: ${agent.personality ?? 'professional and helpful'}.${agent.contextBrief ? `\n\nContext: ${agent.contextBrief}` : ''}${memBlock}${kbBlock}
+Personality: ${agent.personality ?? 'professional and helpful'}.${agent.contextBrief ? `\n\nContext: ${agent.contextBrief}` : ''}
 You are embedded on a website. Be concise, friendly, and stay in character. Keep responses under 200 words unless detail is essential.
 
 ${STRICT_PURPOSE_CONTRACT}`
