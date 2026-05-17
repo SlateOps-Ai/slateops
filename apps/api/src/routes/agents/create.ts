@@ -17,7 +17,6 @@ const createSchema = z.object({
   avatarUrl:    z.string().url().optional(),
   contextBrief: z.string().max(1000).optional(),
   pattern:      z.enum(['COPILOT', 'TRIAGE', 'TRANSACTION', 'MONITOR', 'DECISION_SUPPORT', 'AUTONOMOUS']).default('AUTONOMOUS'),
-  strictness:   z.enum(['STRICT', 'BALANCED', 'OPEN']).default('BALANCED'),
   scopeConfig:  scopeConfigSchema.optional(),
   isPublic:     z.boolean().default(false),
 })
@@ -112,7 +111,6 @@ export default async function agentsRoute(app: FastifyInstance) {
         avatarPresentation: body.presentation,
         deskPosition,
         pattern:            body.pattern,
-        strictness:         body.strictness,
         scopeConfig:        body.scopeConfig ?? undefined,
         isPublic:           body.isPublic,
       },
@@ -142,7 +140,6 @@ export default async function agentsRoute(app: FastifyInstance) {
     const patchSchema = z.object({
       name:         z.string().min(1).max(40).optional(),
       pattern:      z.enum(['COPILOT', 'TRIAGE', 'TRANSACTION', 'MONITOR', 'DECISION_SUPPORT', 'AUTONOMOUS']).optional(),
-      strictness:   z.enum(['STRICT', 'BALANCED', 'OPEN']).optional(),
       scopeConfig:  scopeConfigSchema.optional(),
       isPublic:     z.boolean().optional(),
       contextBrief: z.string().max(1000).nullable().optional(),
@@ -160,7 +157,6 @@ export default async function agentsRoute(app: FastifyInstance) {
       data:  {
         ...(body.name         !== undefined && { name:         body.name.trim() }),
         ...(body.pattern      !== undefined && { pattern:      body.pattern }),
-        ...(body.strictness   !== undefined && { strictness:   body.strictness }),
         ...(body.scopeConfig  !== undefined && { scopeConfig:  body.scopeConfig }),
         ...(body.isPublic     !== undefined && { isPublic:     body.isPublic }),
         ...(body.contextBrief !== undefined && { contextBrief: body.contextBrief }),

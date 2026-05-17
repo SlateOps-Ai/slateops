@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../../lib/prisma.js'
 import { getAnthropicClient } from '../../lib/claude.js'
 import { PATTERN_PREAMBLES } from '../../lib/domain-guard.js'
-import { contractFor } from '../../lib/strict-purpose.js'
+import { STRICT_PURPOSE_CONTRACT } from '../../lib/strict-purpose.js'
 
 const bodySchema = z.object({
   agentId: z.string().uuid(),
@@ -57,14 +57,13 @@ export default async function publicChatRoute(app: FastifyInstance) {
       ? `\n\nKnowledge:\n${(agent as any).knowledge.map((k: any) => `[${k.title}]\n${k.content.slice(0, 800)}`).join('\n\n')}`
       : ''
 
-    const contract      = contractFor((agent as any).strictness ?? 'BALANCED')
-    const contractBlock = contract ? `\n\n${contract}` : ''
-
     const system = `${preamble}
 
 You are ${agent.name}, a ${agent.role.toLowerCase().replace(/_/g, ' ')}.
 Personality: ${agent.personality ?? 'professional and helpful'}.${agent.contextBrief ? `\n\nContext: ${agent.contextBrief}` : ''}${memBlock}${kbBlock}
-You are embedded on a website. Be concise, friendly, and stay in character. Keep responses under 200 words unless detail is essential.${contractBlock}`
+You are embedded on a website. Be concise, friendly, and stay in character. Keep responses under 200 words unless detail is essential.
+
+${STRICT_PURPOSE_CONTRACT}`
 
     const client = getAnthropicClient()
 

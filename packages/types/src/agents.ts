@@ -21,8 +21,6 @@ export interface DeskPosition {
   y: number
 }
 
-export type AgentStrictness = 'STRICT' | 'BALANCED' | 'OPEN'
-
 export interface Agent {
   id: string
   officeId: string
@@ -36,7 +34,6 @@ export interface Agent {
   status: AgentStatus
   isActive: boolean
   isPublic: boolean
-  strictness?: AgentStrictness
   createdAt: string
 }
 

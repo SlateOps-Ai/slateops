@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../../lib/prisma.js'
 import { getAnthropicClient } from '../../lib/claude.js'
 import { logLlmCall, type AnthropicUsage } from '../../lib/llm-usage.js'
-import { contractFor } from '../../lib/strict-purpose.js'
+import { STRICT_PURPOSE_CONTRACT } from '../../lib/strict-purpose.js'
 
 const bodySchema = z.object({
   message:  z.string().min(1).max(4000),
@@ -64,12 +64,11 @@ export default async function agentChatRoute(app: FastifyInstance) {
       ? `\n\nIMPORTANT: If the user asks you to draft, write, compose, or "do" a post for any social platform (X/Twitter, LinkedIn, Instagram, Facebook, YouTube, TikTok, Threads, Pinterest), call the draftSocialPost tool. Do NOT write the post in plain chat text — use the tool so the user gets a one-click schedule button. A short conversational reply alongside the tool call is fine.`
       : ''
 
-    const contract      = contractFor((agent as any).strictness ?? 'BALANCED')
-    const contractBlock = contract ? `\n\n${contract}` : ''
-
     const system = `You are ${agent.name}, a ${agent.role.toLowerCase().replace(/_/g, ' ')} AI agent.
 Personality: ${agent.personality ?? 'professional and efficient'}.${agent.contextBrief ? `\n\nContext: ${agent.contextBrief}` : ''}${memBlock}${toolHint}
-You are in a direct conversation. Be concise, helpful, and stay in character.${contractBlock}`
+You are in a direct conversation. Be concise, helpful, and stay in character.
+
+${STRICT_PURPOSE_CONTRACT}`
 
     const messages = [
       ...body.history.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
