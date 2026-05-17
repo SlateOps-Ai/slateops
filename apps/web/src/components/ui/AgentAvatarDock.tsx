@@ -56,8 +56,27 @@ const CANVAS_H = 800
 const CAM_CX = 640
 const CAM_CY = 420
 
+function relativeAgo(iso: string | Date | null | undefined): string | null {
+  if (!iso) return null
+  const t = new Date(iso).getTime()
+  if (!Number.isFinite(t)) return null
+  const diff = Math.max(0, Date.now() - t)
+  const min  = Math.floor(diff / 60_000)
+  if (min < 1)   return 'just now'
+  if (min < 60)  return `${min}m ago`
+  const hr = Math.floor(min / 60)
+  if (hr < 24)   return `${hr}h ago`
+  const day = Math.floor(hr / 24)
+  return `${day}d ago`
+}
+
+function truncate(s: string, n: number): string {
+  return s.length <= n ? s : s.slice(0, n - 1).trimEnd() + '…'
+}
+
 export function AgentAvatarDock() {
   const agents                 = useAgentsStore((s) => s.agents)
+  const tasks                  = useAgentsStore((s) => s.tasks)
   const activeChatAgentId      = useAgentsStore((s) => s.activeChatAgentId)
   const teamChatOpen           = useAgentsStore((s) => s.teamChatOpen)
   const setActiveChatAgent     = useAgentsStore((s) => s.setActiveChatAgent)
@@ -342,6 +361,18 @@ export function AgentAvatarDock() {
         const isSelected = teamChatOpen && activeChatAgentId === agent.id
         const role = AGENT_ROLE_LABELS[agent.role as keyof typeof AGENT_ROLE_LABELS] ?? agent.role
 
+        // Most recent completed task this agent owned — used for the glance
+        // line under the status. Skipped while the agent is mid-WORKING so
+        // we don't crowd the "Working…" indicator with stale history.
+        const lastCompleted = agent.status === 'WORKING'
+          ? null
+          : tasks
+              .filter((t) => t.agentId === agent.id && t.status === 'COMPLETE' && t.completedAt)
+              .sort((a, b) => new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime())[0]
+        const lastSummary = lastCompleted
+          ? `${truncate(lastCompleted.title ?? lastCompleted.rawCommand ?? 'task', 28)} · ${relativeAgo(lastCompleted.completedAt) ?? ''}`.trim()
+          : null
+
         function handleClick() {
           if (dragStateRef.current[agent.id]?.dragged) {
             // Click suppressed because the user just finished dragging
@@ -522,7 +553,7 @@ export function AgentAvatarDock() {
               )} />
             </div>
 
-            {/* Name + status label */}
+            {/* Name + status label + last-task glance line */}
             <div className="flex flex-col items-center pointer-events-none">
               <span className="text-[11px] font-semibold text-white/90 drop-shadow-sm whitespace-nowrap">
                 {agent.name}
@@ -538,6 +569,14 @@ export function AgentAvatarDock() {
               )}>
                 {STATUS_LABEL[agent.status]}
               </span>
+              {lastSummary && (
+                <span
+                  className="text-[8px] text-white/40 whitespace-nowrap max-w-[180px] truncate mt-0.5"
+                  title={lastCompleted?.title ?? lastCompleted?.rawCommand ?? ''}
+                >
+                  {lastSummary}
+                </span>
+              )}
             </div>
             </motion.div>
           </motion.button>
