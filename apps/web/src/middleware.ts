@@ -1,6 +1,11 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 
-const isPublicRoute = createRouteMatcher(['/', '/sign-in(.*)', '/sign-up(.*)'])
+const isPublicRoute = createRouteMatcher([
+  '/',
+  '/sign-in(.*)',
+  '/sign-up(.*)',
+  '/api/csp-report',  // browser-posted CSP violation reports — no credentials
+])
 
 export default clerkMiddleware((auth, req) => {
   if (!isPublicRoute(req)) auth().protect()
