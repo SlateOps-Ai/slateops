@@ -1,15 +1,34 @@
 import Link from 'next/link'
-import { Twitter, Youtube, Facebook, Linkedin } from 'lucide-react'
+import { Youtube, Facebook, Linkedin } from 'lucide-react'
 import { SlateCaretLogo } from '@/components/branding/SlateCaretLogo'
 import { FaqAccordion } from './FaqAccordion'
+
+/** Official X brand mark — Lucide still ships the legacy Twitter bird,
+ *  so we inline the current X glyph. Accepts the same `size` + `strokeWidth`
+ *  prop shape as Lucide icons (strokeWidth ignored — X is a filled path)
+ *  so it drops into the SOCIALS map unchanged. */
+function XLogo({ size = 16 }: { size?: number; strokeWidth?: number }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  )
+}
 
 // Social URLs — placeholders. Swap each href for the real handle once
 // the accounts exist (or are renamed from a previous brand).
 const SOCIALS = [
-  { label: 'Twitter / X', href: 'https://twitter.com/slateops',         Icon: Twitter  },
-  { label: 'YouTube',     href: 'https://youtube.com/@slateops',         Icon: Youtube  },
-  { label: 'Facebook',    href: 'https://facebook.com/slateops',         Icon: Facebook },
-  { label: 'LinkedIn',    href: 'https://www.linkedin.com/company/slateops', Icon: Linkedin },
+  { label: 'X',        href: 'https://x.com/slateops',                       Icon: XLogo    },
+  { label: 'YouTube',  href: 'https://youtube.com/@slateops',                Icon: Youtube  },
+  { label: 'Facebook', href: 'https://facebook.com/slateops',                Icon: Facebook },
+  { label: 'LinkedIn', href: 'https://www.linkedin.com/company/slateops',    Icon: Linkedin },
 ]
 
 /** Brand lockup — the caret icon + "slate|ops" wordmark with a blinking
