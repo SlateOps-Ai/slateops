@@ -66,17 +66,9 @@ export function CockpitHero() {
   const [question, setQuestion]   = useState('')
   const [creditError, setCreditError] = useState<CreditError | null>(null)
   const [listening, setListening] = useState(false)
-  // Distinguishes "still loading agents" from "settled with zero agents", so
-  // we don't flash a misleading "empty office" message during the fetch.
-  const [hasSettled, setHasSettled] = useState(false)
   const inputRef    = useRef<HTMLTextAreaElement>(null)
   const recognizerRef = useRef<any>(null)
   useEffect(() => () => { recognizerRef.current?.abort() }, [])
-  useEffect(() => {
-    if (agents.length > 0) { setHasSettled(true); return }
-    const t = setTimeout(() => setHasSettled(true), 1200)
-    return () => clearTimeout(t)
-  }, [agents.length])
 
   // ── Situation line inputs ─────────────────────────────────────────
   const idleAgents = agents.filter((a) => a.status === 'IDLE').length
@@ -90,14 +82,15 @@ export function CockpitHero() {
   const firstName = user?.firstName?.trim() || user?.fullName?.split(' ')[0] || 'there'
   const greet     = greeting(new Date())
 
-  // Three distinct visual states. The `hasSettled` gate prevents us from
-  // saying "your office is empty" while the agents fetch is still in flight.
-  const isLoading = totalAgents === 0 && !hasSettled
-  const isEmpty   = totalAgents === 0 && hasSettled
+  // Two visual states only — no artificial loading grace, because in dev
+  // mode (Next.js Fast Refresh + StrictMode) the timer was unreliable and
+  // left users staring at "Loading…" indefinitely. Better to show "empty +
+  // Hire button" immediately on zero agents: if the fetch comes back with
+  // agents, they replace the empty state in one render.
+  const isEmpty = totalAgents === 0
 
   const situation = (() => {
-    if (isLoading) return 'Loading your office…'
-    if (isEmpty)   return 'Your office is empty — hire your first agent to get started.'
+    if (isEmpty) return 'Your office is empty — hire your first agent to get started.'
     if (workingAgents > 0) {
       const names = agents.filter((a) => a.status === 'WORKING').slice(0, 2).map((a) => a.name).join(' and ')
       return `${workingAgents} agent${workingAgents > 1 ? 's' : ''} working${names ? ` (${names})` : ''} · ${idleAgents} idle.`
@@ -269,9 +262,9 @@ export function CockpitHero() {
           </button>
         )}
 
-        {/* Command input — hidden during loading/empty so we don't tempt the
-            user into typing a command with no agent to run it. */}
-        {!isLoading && !isEmpty && (
+        {/* Command input — hidden when empty so we don't tempt the user
+            into typing a command with no agent to run it. */}
+        {!isEmpty && (
         <div className={cn(
           'flex items-end rounded-2xl border bg-panel-bg/95 backdrop-blur-md shadow-2xl shadow-black/40 transition-colors',
           busy             ? 'border-panel-accent/60' : 'border-white/10 hover:border-white/20 focus-within:border-panel-accent/60',
@@ -326,7 +319,7 @@ export function CockpitHero() {
 
         {/* Example prompts — hidden once the user has any task history,
             during loading, or when there are zero agents to route to. */}
-        {!isLoading && !isEmpty && tasks.length === 0 && state === 'idle' && (
+        {!isEmpty && tasks.length === 0 && state === 'idle' && (
           <div className="flex flex-wrap gap-2 justify-center mt-1">
             {EXAMPLE_PROMPTS.map((p) => (
               <button
