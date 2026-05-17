@@ -22,13 +22,13 @@ function XLogo({ size = 16 }: { size?: number; strokeWidth?: number }) {
   )
 }
 
-// Social URLs — placeholders. Swap each href for the real handle once
-// the accounts exist (or are renamed from a previous brand).
+// Social URLs. X and LinkedIn point to the real accounts; YouTube and
+// Facebook are still placeholders — swap once those handles are live.
 const SOCIALS = [
-  { label: 'X',        href: 'https://x.com/slateops',                       Icon: XLogo    },
-  { label: 'YouTube',  href: 'https://youtube.com/@slateops',                Icon: Youtube  },
-  { label: 'Facebook', href: 'https://facebook.com/slateops',                Icon: Facebook },
-  { label: 'LinkedIn', href: 'https://www.linkedin.com/company/slateops',    Icon: Linkedin },
+  { label: 'X',        href: 'https://x.com/SlateOps',                              Icon: XLogo    },
+  { label: 'YouTube',  href: 'https://youtube.com/@slateops',                       Icon: Youtube  },
+  { label: 'Facebook', href: 'https://facebook.com/slateops',                       Icon: Facebook },
+  { label: 'LinkedIn', href: 'https://www.linkedin.com/in/slate-ops-57474240a',     Icon: Linkedin },
 ]
 
 /** Brand lockup — the caret icon + "slate|ops" wordmark with a blinking
