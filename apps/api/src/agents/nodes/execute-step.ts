@@ -9,6 +9,7 @@ import type { McpTool } from '../../lib/mcp.js'
 import type { AgentGraphState } from '../graph.js'
 import { getExecutor } from '../executor-registry.js'
 import { appForToolName, findCatalogApp } from '@agentcity/types'
+import { STRICT_PURPOSE_CONTRACT } from '../../lib/strict-purpose.js'
 
 function scoreKnowledge(items: Array<{ title: string; content: string }>, instruction: string): Array<{ title: string; content: string }> {
   const words = instruction.toLowerCase().split(/\W+/).filter((w) => w.length > 3)
@@ -55,7 +56,9 @@ Personality: ${personality || 'professional and efficient'}.
 Today's date: ${dateStr}.${brief ? `\n\nContext: ${brief}` : ''}${memBlock}${kbBlock}${scopeGuardNote}
 Execute the current task step using the available tools.
 When you have enough information, stop calling tools and return a clear, structured result.
-Never fabricate data — if a tool returns no results, say so honestly.`
+Never fabricate data — if a tool returns no results, say so honestly.
+
+${STRICT_PURPOSE_CONTRACT}`
 }
 
 export async function executeStepNode(state: AgentGraphState): Promise<Partial<AgentGraphState>> {

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../../lib/prisma.js'
 import { getAnthropicClient } from '../../lib/claude.js'
 import { logLlmCall, type AnthropicUsage } from '../../lib/llm-usage.js'
+import { STRICT_PURPOSE_CONTRACT } from '../../lib/strict-purpose.js'
 
 const bodySchema = z.object({
   message:  z.string().min(1).max(4000),
@@ -65,7 +66,9 @@ export default async function agentChatRoute(app: FastifyInstance) {
 
     const system = `You are ${agent.name}, a ${agent.role.toLowerCase().replace(/_/g, ' ')} AI agent.
 Personality: ${agent.personality ?? 'professional and efficient'}.${agent.contextBrief ? `\n\nContext: ${agent.contextBrief}` : ''}${memBlock}${toolHint}
-You are in a direct conversation. Be concise, helpful, and stay in character.`
+You are in a direct conversation. Be concise, helpful, and stay in character.
+
+${STRICT_PURPOSE_CONTRACT}`
 
     const messages = [
       ...body.history.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
