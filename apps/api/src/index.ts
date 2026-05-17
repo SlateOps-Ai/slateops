@@ -60,6 +60,27 @@ app.setErrorHandler((err, req, reply) => {
   if (err instanceof ZodError) {
     return reply.code(422).send({ error: 'Validation failed', issues: err.errors })
   }
+
+  // Anthropic SDK errors carry their HTTP status in `.status`; Fastify's
+  // err.statusCode is undefined. Recognise them and pass the upstream
+  // message through unmasked — users need to see "credit balance too low"
+  // and similar so they know whether to top up Anthropic or report a bug.
+  const anyErr = err as any
+  const isAnthropicError =
+    typeof anyErr?.constructor?.name === 'string' &&
+    /(?:BadRequest|Authentication|PermissionDenied|NotFound|RateLimit|InternalServer|UnprocessableEntity|APIError)Error/.test(anyErr.constructor.name) &&
+    anyErr?.error?.error?.message
+  if (isAnthropicError) {
+    const anthropicMsg = anyErr.error.error.message as string
+    const upstream     = typeof anyErr.status === 'number' ? anyErr.status : 502
+    req.log.warn({ anthropicMsg, status: upstream }, 'Anthropic API error')
+    return reply.code(502).send({
+      error:  `LLM provider error: ${anthropicMsg}`,
+      source: 'anthropic',
+      upstreamStatus: upstream,
+    })
+  }
+
   const status = err.statusCode ?? 500
   // Pass through 4xx messages (those are intentional, user-facing errors).
   // Mask 5xx to a generic message + correlation id; full details go to logs.
