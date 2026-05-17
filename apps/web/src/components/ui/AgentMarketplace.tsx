@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { X, Store, Star, Download, Check, Loader2, Search, Sparkles } from 'lucide-react'
+import { X, Store, Star, DoorOpen, Check, Loader2, Search, Sparkles } from 'lucide-react'
 import { useAuthFetch } from '@/hooks/useAuthFetch'
 import { useAgentsStore } from '@/stores/agents.store'
 import { cn } from '@/lib/utils'
@@ -11,9 +11,11 @@ import { AGENT_TEMPLATES, TEMPLATE_CATEGORIES } from '@/lib/agent-templates'
 interface Props { onClose: () => void }
 
 export function AgentMarketplace({ onClose }: Props) {
-  const authFetch  = useAuthFetch()
-  const addAgent   = useAgentsStore((s) => s.addAgent)
-  const API        = process.env.NEXT_PUBLIC_API_URL
+  const authFetch           = useAuthFetch()
+  const addAgent            = useAgentsStore((s) => s.addAgent)
+  const arrivingAgentIds    = useAgentsStore((s) => s.arrivingAgentIds)
+  const setArrivingAgentIds = useAgentsStore((s) => s.setArrivingAgentIds)
+  const API                 = process.env.NEXT_PUBLIC_API_URL
 
   const [search,     setSearch]     = useState('')
   const [category,   setCategory]   = useState('All')
@@ -40,6 +42,11 @@ export function AgentMarketplace({ onClose }: Props) {
       const data = await res.json()
       if (data.agent) {
         addAgent(data.agent)
+        // Trigger the "walking through the door" animation in
+        // AgentAvatarDock — the dock reads arrivingAgentIds and starts each
+        // new agent at door coords (80, 680), animating to their desk slot.
+        // The dock calls markAgentArrived once the walk completes.
+        setArrivingAgentIds([...arrivingAgentIds, data.agent.id])
         setInstalled((prev) => new Set([...prev, template.id]))
       }
     } catch { /* silent */ } finally {
@@ -111,7 +118,7 @@ export function AgentMarketplace({ onClose }: Props) {
               <div className="flex items-center justify-center gap-1 mt-1">
                 <Star size={10} className="text-amber-400 fill-amber-400" />
                 <span className="text-amber-400 text-[10px]">{selected.rating}</span>
-                <span className="text-panel-muted text-[10px]">· {selected.installs.toLocaleString()} installs</span>
+                <span className="text-panel-muted text-[10px]">· {selected.installs.toLocaleString()} hires</span>
               </div>
               <div className="flex gap-1 justify-center mt-2">
                 {selected.tags.map((tag) => (
@@ -142,10 +149,10 @@ export function AgentMarketplace({ onClose }: Props) {
               )}
             >
               {installing === selected.id
-                ? <Loader2 size={14} className="animate-spin" />
+                ? <><Loader2 size={14} className="animate-spin" /> Hiring…</>
                 : installed.has(selected.id)
-                ? <><Check size={14} /> Installed</>
-                : <><Download size={14} /> Install agent</>}
+                ? <><Check size={14} /> Hired</>
+                : <><DoorOpen size={14} /> Hire Agent</>}
             </button>
           </div>
         </div>
@@ -177,7 +184,7 @@ export function AgentMarketplace({ onClose }: Props) {
                     <Star size={9} className="text-amber-400 fill-amber-400" />
                     <span className="text-amber-400 text-[9px]">{t.rating}</span>
                   </div>
-                  <span className="text-panel-muted/40 text-[9px]">{t.installs.toLocaleString()} installs</span>
+                  <span className="text-panel-muted/40 text-[9px]">{t.installs.toLocaleString()} hires</span>
                   <div className="flex gap-1 ml-auto">
                     {t.tags.slice(0, 2).map((tag) => (
                       <span key={tag} className="px-1.5 py-0.5 rounded-full bg-panel-accent/10 text-panel-accent text-[8px]">{tag}</span>
