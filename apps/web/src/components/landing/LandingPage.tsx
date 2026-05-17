@@ -1,6 +1,16 @@
 import Link from 'next/link'
+import { Twitter, Youtube, Facebook, Linkedin } from 'lucide-react'
 import { SlateCaretLogo } from '@/components/branding/SlateCaretLogo'
 import { FaqAccordion } from './FaqAccordion'
+
+// Social URLs — placeholders. Swap each href for the real handle once
+// the accounts exist (or are renamed from a previous brand).
+const SOCIALS = [
+  { label: 'Twitter / X', href: 'https://twitter.com/slateops',         Icon: Twitter  },
+  { label: 'YouTube',     href: 'https://youtube.com/@slateops',         Icon: Youtube  },
+  { label: 'Facebook',    href: 'https://facebook.com/slateops',         Icon: Facebook },
+  { label: 'LinkedIn',    href: 'https://www.linkedin.com/company/slateops', Icon: Linkedin },
+]
 
 /** Brand lockup — the caret icon + "slate|ops" wordmark with a blinking
  *  amber caret divider. Sizes are configurable so the same component
@@ -478,18 +488,41 @@ export function LandingPage() {
 
       {/* ── SECTION 10: FOOTER ───────────────────────────────────────────── */}
       <footer className="border-t border-white/[0.06] py-12 px-6">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="text-center md:text-left flex flex-col items-center md:items-start gap-1">
-            <SlateOpsLockup size="sm" />
-            <p className="text-[#8892B0] text-xs">Human judgment. At machine speed.</p>
+        <div className="max-w-6xl mx-auto flex flex-col gap-8">
+
+          {/* Top row: brand + socials + policy links */}
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="text-center md:text-left flex flex-col items-center md:items-start gap-1">
+              <SlateOpsLockup size="sm" />
+              <p className="text-[#8892B0] text-xs">Human judgment. At machine speed.</p>
+            </div>
+
+            {/* Socials — placeholder hrefs; swap in real handles. */}
+            <div className="flex items-center gap-2">
+              {SOCIALS.map(({ label, href, Icon }) => (
+                <a
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`SlateOps on ${label}`}
+                  className="w-9 h-9 flex items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.03] text-[#8892B0] hover:text-white hover:bg-white/[0.07] hover:border-white/20 transition-colors"
+                >
+                  <Icon size={15} strokeWidth={1.75} />
+                </a>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-5 text-sm text-[#8892B0]">
+              <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
+              <a href="#" className="hover:text-white transition-colors">Terms of Service</a>
+              <a href="#" className="hover:text-white transition-colors">Security</a>
+              <a href="mailto:hello@slateops.tech" className="hover:text-white transition-colors">Contact</a>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-[#8892B0]">
-            <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
-            <a href="#" className="hover:text-white transition-colors">Terms of Service</a>
-            <a href="#" className="hover:text-white transition-colors">Security</a>
-            <a href="mailto:hello@slateops.tech" className="hover:text-white transition-colors">Contact</a>
-          </div>
-          <p className="text-[#8892B0] text-xs">© 2026 SlateOps. All rights reserved.</p>
+
+          {/* Bottom row: copyright on its own line so the top row breathes */}
+          <p className="text-[#8892B0] text-xs text-center md:text-left">© 2026 SlateOps. All rights reserved.</p>
         </div>
       </footer>
 
