@@ -1,14 +1,23 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   X, Brain, Plus, Trash2, Edit3, Check, ChevronDown,
-  Bot, Sparkles, User, Loader2,
+  Bot, Sparkles, User, Loader2, GripHorizontal,
 } from 'lucide-react'
 import { useAuthFetch } from '@/hooks/useAuthFetch'
 import { useAgentsStore } from '@/stores/agents.store'
 import { cn } from '@/lib/utils'
+
+/** Local-storage key that remembers the panel's last position so it
+ *  stays where the user dragged it across close/reopen and page reloads. */
+const POS_STORAGE_KEY = 'slateops:agent-memory-panel-pos'
+
+/** Keep this many pixels of the panel reachable on every edge so a
+ *  badly-positioned drag can't make it un-grabbable. */
+const VIEWPORT_BUFFER = 40
+const PANEL_WIDTH     = 320  // matches the w-80 Tailwind class on the panel
 
 interface Memory {
   id:              string
@@ -53,6 +62,85 @@ export function AgentMemoryPanel({ onClose }: Props) {
   const [showAdd,    setShowAdd]    = useState(false)
   const [saving,     setSaving]     = useState(false)
   const [agentOpen,  setAgentOpen]  = useState(false)
+
+  // ── Drag-to-reposition state ─────────────────────────────────────────────
+  // Position is null until the user drags the panel for the first time; while
+  // null we use the default top-right corner via Tailwind classes. After the
+  // first drag we switch to absolute pixel positioning.
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const dragRef  = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(null)
+  const panelRef = useRef<HTMLDivElement | null>(null)
+
+  // Restore last-known position from localStorage on mount.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const raw = window.localStorage.getItem(POS_STORAGE_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as { x: number; y: number }
+      if (Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) setPos(parsed)
+    } catch { /* ignore — defaults to corner */ }
+  }, [])
+
+  function clampToViewport(x: number, y: number): { x: number; y: number } {
+    if (typeof window === 'undefined') return { x, y }
+    const maxX = window.innerWidth  - VIEWPORT_BUFFER
+    const maxY = window.innerHeight - VIEWPORT_BUFFER
+    const minX = -(PANEL_WIDTH - VIEWPORT_BUFFER)
+    return {
+      x: Math.max(minX, Math.min(maxX, x)),
+      y: Math.max(0,    Math.min(maxY, y)),
+    }
+  }
+
+  function handleHeaderMouseDown(e: React.MouseEvent) {
+    if (e.button !== 0) return
+    // Don't start a drag if the user clicked the close button (X) — that's
+    // handled by the button's own onClick.
+    if ((e.target as HTMLElement).closest('button[aria-label="Close panel"]')) return
+    e.preventDefault()
+
+    const rect = panelRef.current?.getBoundingClientRect()
+    const base = pos ?? (rect ? { x: rect.left, y: rect.top } : { x: 0, y: 0 })
+
+    dragRef.current = {
+      startX: e.clientX, startY: e.clientY,
+      baseX:  base.x,    baseY:  base.y,
+    }
+    setIsDragging(true)
+
+    const onMove = (ev: MouseEvent) => {
+      const s = dragRef.current
+      if (!s) return
+      const raw = { x: s.baseX + (ev.clientX - s.startX), y: s.baseY + (ev.clientY - s.startY) }
+      const clamped = clampToViewport(raw.x, raw.y)
+      setPos(clamped)
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup',   onUp)
+      dragRef.current = null
+      setIsDragging(false)
+      // Persist the final position.
+      setPos((p) => {
+        if (p && typeof window !== 'undefined') {
+          try { window.localStorage.setItem(POS_STORAGE_KEY, JSON.stringify(p)) } catch {}
+        }
+        return p
+      })
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup',   onUp)
+  }
+
+  /** Double-click the header to snap the panel back to its default corner. */
+  function handleHeaderDoubleClick() {
+    setPos(null)
+    if (typeof window !== 'undefined') {
+      try { window.localStorage.removeItem(POS_STORAGE_KEY) } catch {}
+    }
+  }
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
 
@@ -115,19 +203,44 @@ export function AgentMemoryPanel({ onClose }: Props) {
   const autoMemories   = memories.filter((m) => m.source === 'AUTO')
   const manualMemories = memories.filter((m) => m.source === 'MANUAL')
 
+  // When the panel has been dragged, use absolute pixel position + a fixed
+  // height. When it hasn't, keep the original right-60 top-16 bottom-4
+  // anchored layout that grows with the viewport.
+  const positioned = pos !== null
+  const containerClass = positioned
+    ? 'absolute z-30 w-80 h-[calc(100vh-80px)] flex flex-col rounded-2xl border border-white/10 bg-panel-bg shadow-2xl backdrop-blur-sm overflow-hidden'
+    : 'absolute right-60 top-16 bottom-4 z-30 w-80 flex flex-col rounded-2xl border border-white/10 bg-panel-bg shadow-2xl backdrop-blur-sm overflow-hidden'
+
   return (
     <motion.div
-      initial={{ opacity: 0, x: 24 }}
+      ref={panelRef}
+      initial={{ opacity: 0, x: positioned ? 0 : 24 }}
       animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 24 }}
+      exit={{    opacity: 0, x: positioned ? 0 : 24 }}
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      className="absolute right-60 top-16 bottom-4 z-30 w-80 flex flex-col rounded-2xl border border-white/10 bg-panel-bg shadow-2xl backdrop-blur-sm overflow-hidden"
+      className={containerClass}
+      style={positioned ? { left: pos!.x, top: pos!.y } : undefined}
     >
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 shrink-0">
+      {/* Header — also the drag handle. Single click does nothing special;
+          mousedown starts a drag; double-click resets to the default corner. */}
+      <div
+        onMouseDown={handleHeaderMouseDown}
+        onDoubleClick={handleHeaderDoubleClick}
+        className={cn(
+          'flex items-center gap-2 px-4 py-3 border-b border-white/10 shrink-0 select-none transition-colors',
+          isDragging ? 'cursor-grabbing bg-white/[0.04]' : 'cursor-grab hover:bg-white/[0.02]',
+        )}
+        title="Drag to move · double-click to reset position"
+      >
+        <GripHorizontal size={12} className="text-panel-muted/60 shrink-0" />
         <Brain size={13} className="text-panel-accent shrink-0" />
         <span className="text-white text-xs font-medium flex-1">Agent Memory</span>
-        <button onClick={onClose} className="p-1 rounded-lg text-panel-muted hover:text-white hover:bg-white/10 transition-colors">
+        <button
+          aria-label="Close panel"
+          onClick={onClose}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="p-1 rounded-lg text-panel-muted hover:text-white hover:bg-white/10 transition-colors"
+        >
           <X size={14} />
         </button>
       </div>
