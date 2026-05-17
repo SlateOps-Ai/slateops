@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js'
 import { getAnthropicClient } from '../lib/claude.js'
 import { sendWeeklyBrief, type BriefData } from '../services/email.service.js'
+import { decryptByokKey, decryptMemoryValue } from '../lib/crypto.js'
 
 export async function generateAndSendBriefs(): Promise<void> {
   // Find all users who have at least one active agent
@@ -77,7 +78,7 @@ async function generateBriefForUser(
     if (tasks.length === 0) continue
 
     const memContext = agent.memories.length
-      ? `Agent memories: ${(agent.memories as any[]).map((m) => `${m.key}: ${m.value}`).join('; ')}`
+      ? `Agent memories: ${(agent.memories as any[]).map((m) => `${m.key}: ${decryptMemoryValue(m.value) ?? m.value}`).join('; ')}`
       : ''
 
     const taskList = tasks.slice(0, 5).map((t: any) => t.title as string).join(', ')

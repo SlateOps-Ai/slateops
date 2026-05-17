@@ -59,11 +59,12 @@ export default async function marketplaceInstallRoute(app: FastifyInstance) {
 
     // Seed initial memory entries
     if (template.memory.length > 0) {
+      const { encrypt } = await import('../../lib/crypto.js')
       await prisma.agentMemory.createMany({
         data: template.memory.map((value, i) => ({
           agentId:    agent.id,
           key:        `starter_${i}`,
-          value,
+          value:      encrypt(value),
           memoryType: 'LONG_TERM',
           source:     'MANUAL',
         })),

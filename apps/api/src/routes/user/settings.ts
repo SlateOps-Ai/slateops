@@ -1,11 +1,17 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../../lib/prisma.js'
+import { encrypt, decryptByokKey } from '../../lib/crypto.js'
 
 function inferProvider(key: string): string {
   if (key.startsWith('sk-ant-')) return 'ANTHROPIC'
   if (key.startsWith('sk-'))     return 'OPENAI'
   return 'GEMINI'
+}
+
+function maskKey(byok: string | null): string | null {
+  const plain = decryptByokKey(byok)
+  return plain ? `***...${plain.slice(-6)}` : null
 }
 
 const patchSchema = z.object({
@@ -36,7 +42,7 @@ export default async function settingsRoute(app: FastifyInstance) {
       settings: {
         ...user,
         settings:             undefined,
-        byokKey:              user.byokKey ? `***...${user.byokKey.slice(-6)}` : null,
+        byokKey:              maskKey(user.byokKey),
         byokConfigured:       !!user.byokKey,
         byokProvider:         user.byokProvider ?? null,
         dailyBriefEnabled:    raw.dailyBriefEnabled ?? false,
@@ -60,7 +66,7 @@ export default async function settingsRoute(app: FastifyInstance) {
       data.settings = { ...raw, dailyBriefEnabled: body.dailyBriefEnabled }
     }
     if (body.byokKey !== undefined) {
-      data.byokKey = body.byokKey
+      data.byokKey = encrypt(body.byokKey)
       if (!body.byokKey) {
         data.byokProvider = null
       } else {
@@ -86,7 +92,7 @@ export default async function settingsRoute(app: FastifyInstance) {
       settings: {
         ...user,
         settings:          undefined,
-        byokKey:           user.byokKey ? `***...${user.byokKey.slice(-6)}` : null,
+        byokKey:           maskKey(user.byokKey),
         byokConfigured:    !!user.byokKey,
         dailyBriefEnabled: updatedRaw.dailyBriefEnabled ?? false,
       },

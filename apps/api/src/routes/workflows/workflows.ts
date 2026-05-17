@@ -76,7 +76,8 @@ export default async function workflowsRoute(app: FastifyInstance) {
     })
     if (!agents.length) return reply.code(400).send({ error: 'No agents found. Create at least one agent first.' })
 
-    const client = getAnthropicClient(user?.byokKey ?? undefined)
+    const byokKey = (await import('../../lib/crypto.js')).decryptByokKey(user?.byokKey ?? null)
+    const client = getAnthropicClient(byokKey ?? undefined)
     const agentList = agents.map((a) => `- id: ${a.id}, name: ${a.name}, role: ${a.role.replace(/_/g, ' ')}`).join('\n')
 
     const { callAnthropic } = await import('../../lib/llm-usage.js')
@@ -270,7 +271,7 @@ export default async function workflowsRoute(app: FastifyInstance) {
             agent,
             rawCommand:   step.instruction,
             taskTitle:    step.label,
-            byokKey:      user.byokKey ?? undefined,
+            byokKey:      (await import('../../lib/crypto.js')).decryptByokKey(user.byokKey) ?? undefined,
             skipApproval: true,
             executeTool:  makeExecutor(userId),
           }).catch(async (err) => {

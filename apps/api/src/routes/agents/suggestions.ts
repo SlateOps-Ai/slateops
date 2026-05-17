@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { prisma } from '../../lib/prisma.js'
 import { getAnthropicClient } from '../../lib/claude.js'
+import { decryptMemoryValue } from '../../lib/crypto.js'
 
 interface Suggestion {
   agentId:   string
@@ -65,9 +66,10 @@ export default async function suggestionsRoute(app: FastifyInstance) {
     const { count = '5' } = req.query as { count?: string }
 
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { byokKey: true } })
+    const byokKey = (await import('../../lib/crypto.js')).decryptByokKey(user?.byokKey ?? null)
 
     try {
-      const suggestions = await buildAgentSuggestions(id, userId, Math.min(Number(count), 8), user?.byokKey ?? null)
+      const suggestions = await buildAgentSuggestions(id, userId, Math.min(Number(count), 8), byokKey)
       return reply.send({ suggestions: suggestions.map((s) => ({ ...s, agentId: id })) })
     } catch {
       return reply.send({ suggestions: [] })
@@ -107,12 +109,13 @@ export default async function suggestionsRoute(app: FastifyInstance) {
       agentTaskMap.map((e) => [e.agentId, e.tasks])
     )
 
-    const client = getAnthropicClient(user?.byokKey ?? undefined)
+    const byokKey = (await import('../../lib/crypto.js')).decryptByokKey(user?.byokKey ?? null)
+    const client  = getAnthropicClient(byokKey ?? undefined)
     const suggestions: Suggestion[] = []
 
     for (const agent of agents) {
       const memories = agent.memories
-        .map((m) => `${m.key.replace(/_/g, ' ')}: ${m.value}`)
+        .map((m) => `${m.key.replace(/_/g, ' ')}: ${decryptMemoryValue(m.value) ?? m.value}`)
         .join('\n')
 
       const recentTasks = tasksByAgent[agent.id] ?? []

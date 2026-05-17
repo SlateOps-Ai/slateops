@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../../lib/prisma.js'
+import { encrypt, decryptMemoryValue } from '../../lib/crypto.js'
 
 const upsertSchema = z.object({
   key:   z.string().min(1).max(100),
@@ -50,7 +51,8 @@ export default async function memoryRoute(app: FastifyInstance) {
 
     const enriched = memories.map((m) => ({
       ...m,
-      taskTitle:     m.taskId ? (taskMap[m.taskId]?.title ?? null) : null,
+      value:           decryptMemoryValue(m.value) ?? '',
+      taskTitle:       m.taskId ? (taskMap[m.taskId]?.title ?? null) : null,
       taskCompletedAt: m.taskId ? (taskMap[m.taskId]?.completedAt ?? null) : null,
     }))
 
@@ -66,24 +68,25 @@ export default async function memoryRoute(app: FastifyInstance) {
     const agent = await prisma.agent.findFirst({ where: { id, userId } })
     if (!agent) return reply.code(404).send({ error: 'Agent not found' })
 
+    const encryptedValue = encrypt(body.value)
     const memory = await prisma.agentMemory.upsert({
       where:  { agentId_key: { agentId: id, key: body.key } },
       create: {
         agentId:    id,
         key:        body.key,
-        value:      body.value,
+        value:      encryptedValue,
         source:     'MANUAL',
         confidence: null,
         taskId:     null,
       },
       update: {
-        value:  body.value,
+        value:  encryptedValue,
         source: 'MANUAL',
         taskId: null,
       },
     })
 
-    return reply.send({ memory })
+    return reply.send({ memory: { ...memory, value: body.value } })
   })
 
   // PATCH /api/agents/:id/memory/:memoryId — edit value only (preserves source/provenance)
@@ -102,10 +105,10 @@ export default async function memoryRoute(app: FastifyInstance) {
 
     const memory = await prisma.agentMemory.update({
       where: { id: memoryId },
-      data:  { value: body.value },
+      data:  { value: encrypt(body.value) },
     })
 
-    return reply.send({ memory })
+    return reply.send({ memory: { ...memory, value: body.value } })
   })
 
   // DELETE /api/agents/:id/memory/:key — remove by key (legacy URL)

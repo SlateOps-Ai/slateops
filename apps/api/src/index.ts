@@ -366,7 +366,7 @@ async function start() {
           agent,
           rawCommand: saved.rawCommand,
           taskTitle:  saved.title,
-          byokKey:    user.byokKey ?? undefined,
+          byokKey:    (await import('./lib/crypto.js')).decryptByokKey(user.byokKey) ?? undefined,
           executeTool: makeExecutor(schedule.userId),
         }).catch(async (err) => {
           console.error('Scheduled task error:', err)

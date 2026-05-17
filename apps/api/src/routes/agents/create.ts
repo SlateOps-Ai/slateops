@@ -122,11 +122,12 @@ export default async function agentsRoute(app: FastifyInstance) {
       .catch(() => {})
 
     if (body.contextBrief?.trim()) {
+      const { encrypt } = await import('../../lib/crypto.js')
       await prisma.agentMemory.create({
         data: {
           agentId: agent.id,
           key:     'context_brief',
-          value:   body.contextBrief.trim(),
+          value:   encrypt(body.contextBrief.trim()),
         },
       })
     }

@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma.js'
+import { decryptByokKey } from '../lib/crypto.js'
 
 export interface NormalisedEvent {
   sender?:  string   // phone, email address, Slack username, GitHub actor
@@ -172,7 +173,7 @@ export async function processInboundTrigger(
     agent:       agent as any,
     rawCommand,
     taskTitle:   title,
-    byokKey:     user.byokKey ?? undefined,
+    byokKey:     decryptByokKey(user.byokKey) ?? undefined,
     executeTool: makeExecutor(user.id),
   }).catch(async (err) => {
     console.error('Trigger task error:', err)

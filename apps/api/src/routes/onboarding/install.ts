@@ -79,11 +79,12 @@ export default async function onboardingInstallRoute(app: FastifyInstance) {
         },
       })
       // Seed each agent's first-task suggestion as a memory entry — chunk 5 will use this to pre-fill the chat.
+      const { encrypt: encMem } = await import('../../lib/crypto.js')
       await prisma.agentMemory.create({
         data: {
           agentId:    agent.id,
           key:        'first_task_suggestion',
-          value:      spec.firstTask,
+          value:      encMem(spec.firstTask),
           memoryType: 'LONG_TERM',
           source:     'MANUAL',
         },

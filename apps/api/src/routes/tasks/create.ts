@@ -70,7 +70,7 @@ export default async function createTaskRoute(app: FastifyInstance) {
       if (namedAgent) {
         targetAgentId = namedAgent.id
       } else {
-        const decision = await routeCommand(body.rawCommand, agents, user.byokKey ?? undefined)
+        const decision = await routeCommand(body.rawCommand, agents, (await import('../../lib/crypto.js')).decryptByokKey(user.byokKey) ?? undefined)
 
         if (decision.clarificationNeeded) {
           return reply.send({
@@ -134,7 +134,7 @@ export default async function createTaskRoute(app: FastifyInstance) {
       agent,
       rawCommand: body.rawCommand,
       taskTitle,
-      byokKey:    user.byokKey ?? undefined,
+      byokKey:    (await import('../../lib/crypto.js')).decryptByokKey(user.byokKey) ?? undefined,
       executeTool,
     }).catch(async (err) => {
       console.error('Task graph error:', err)

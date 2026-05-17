@@ -112,20 +112,22 @@ Return {"memories":[]} if nothing meaningful.`,
       .join('')
 
     const { memories } = JSON.parse(text)
+    const { encrypt } = await import('../lib/crypto.js')
     for (const mem of (memories as Array<{ key: string; value: string; confidence?: number }>)) {
       if (!mem.key || !mem.value) continue
+      const enc = encrypt(mem.value)
       await prisma.agentMemory.upsert({
         where:  { agentId_key: { agentId, key: mem.key } },
         create: {
           agentId,
           key:        mem.key,
-          value:      mem.value,
+          value:      enc,
           source:     'AUTO',
           taskId,
           confidence: mem.confidence ?? null,
         },
         update: {
-          value:      mem.value,
+          value:      enc,
           source:     'AUTO',
           taskId,
           confidence: mem.confidence ?? null,
