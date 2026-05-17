@@ -16,7 +16,19 @@ import { AgentActionsHeader } from '@/components/ui/AgentActionsHeader'
 import { SlateText } from '@/components/ui/SlateText'
 import { SlateCaretLogo } from '@/components/branding/SlateCaretLogo'
 import { AGENT_ROLE_LABELS, findCatalogApp, canRoleUseApp } from '@agentcity/types'
-import type { AgentStatus, AgentRole } from '@agentcity/types'
+import type { AgentStatus, AgentRole, AgentStrictness } from '@agentcity/types'
+
+const STRICTNESS_ORDER: AgentStrictness[] = ['BALANCED', 'STRICT', 'OPEN']
+const STRICTNESS_GLYPH: Record<AgentStrictness, string> = {
+  STRICT:   '🔒',
+  BALANCED: '🤝',
+  OPEN:     '✨',
+}
+const STRICTNESS_TITLE: Record<AgentStrictness, string> = {
+  STRICT:   'Strict — refuses off-topic verbatim. Use for compliance roles.',
+  BALANCED: 'Balanced — warm but focused. Default.',
+  OPEN:     'Open — chats freely, no scope contract.',
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface DraftPost { content: string; platform: string; suggestedAt?: string }
@@ -599,7 +611,7 @@ function PickerCeoCard({
 function PickerAgentCard({
   agent, index, isSelected, onClick,
 }: {
-  agent: { id: string; name: string; role: string; avatarUrl: string; status: AgentStatus }
+  agent: { id: string; name: string; role: string; avatarUrl: string; status: AgentStatus; strictness?: AgentStrictness }
   index: number
   isSelected: boolean
   onClick: () => void
@@ -620,6 +632,23 @@ function PickerAgentCard({
       inputRef.current?.select()
     }
   }, [editing])
+
+  async function cycleStrictness() {
+    const current = (agent.strictness ?? 'BALANCED') as AgentStrictness
+    const idx     = STRICTNESS_ORDER.indexOf(current)
+    const next    = STRICTNESS_ORDER[(idx + 1) % STRICTNESS_ORDER.length]
+    // Optimistic update
+    updateAgent(agent.id, { strictness: next } as any)
+    try {
+      const res = await authFetch(`${API}/api/agents/${agent.id}`, {
+        method: 'PATCH',
+        body:   JSON.stringify({ strictness: next }),
+      })
+      if (!res.ok) throw new Error(`${res.status}`)
+    } catch {
+      updateAgent(agent.id, { strictness: current } as any)
+    }
+  }
 
   async function saveName() {
     const next = editValue.trim()
@@ -783,7 +812,19 @@ function PickerAgentCard({
           </span>
         </div>
       )}
-      <p className="text-[10px] text-panel-muted/80 truncate max-w-[100px]">{role}</p>
+      <div className="flex items-center gap-1">
+        <p className="text-[10px] text-panel-muted/80 truncate max-w-[80px]">{role}</p>
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={(e) => { e.stopPropagation(); cycleStrictness() }}
+          onMouseDown={(e) => e.stopPropagation()}
+          title={STRICTNESS_TITLE[(agent.strictness ?? 'BALANCED') as AgentStrictness]}
+          className="text-[10px] leading-none px-1 py-0.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] transition-colors cursor-pointer"
+        >
+          {STRICTNESS_GLYPH[(agent.strictness ?? 'BALANCED') as AgentStrictness]}
+        </span>
+      </div>
       <p className={cn(
         'text-[9px] font-medium whitespace-nowrap',
         agent.status === 'WORKING' ? 'text-lamp-working' :
