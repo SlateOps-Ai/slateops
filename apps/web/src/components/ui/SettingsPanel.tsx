@@ -93,10 +93,10 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
       style={{ x: offset.x, y: offset.y }}
-      className="absolute bottom-4 left-[242px] z-30 w-80 rounded-2xl border border-white/10 bg-panel-bg backdrop-blur-sm overflow-hidden"
+      className="absolute bottom-4 left-[242px] z-30 w-80 max-h-[calc(100vh-32px)] flex flex-col rounded-2xl border border-white/10 bg-panel-bg backdrop-blur-sm overflow-hidden"
     >
-      {/* Header */}
-      <div onMouseDown={onDragStart} className="flex items-center gap-2 px-4 py-3 border-b border-white/10 cursor-move select-none">
+      {/* Header — stays fixed while the body scrolls. */}
+      <div onMouseDown={onDragStart} className="flex items-center gap-2 px-4 py-3 border-b border-white/10 cursor-move select-none shrink-0">
         <p className="text-white text-xs font-medium flex-1">Settings</p>
         <button
           onClick={onClose}
@@ -106,7 +106,10 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         </button>
       </div>
 
-      <div className="p-4 space-y-5">
+      {/* Scrollable body. Panel was overflowing the viewport when the
+          social-accounts list (8 rows) extended it past the bottom of the
+          monitor — capped to viewport height and scroll-on-overflow. */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-5">
 
         {/* Credits */}
         <div>
